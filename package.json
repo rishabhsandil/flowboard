@@ -1,0 +1,23 @@
+{
+  "name": "flowboard",
+  "private": true,
+  "description": "FlowBoard monorepo root: API (.NET) + client (React/Vite). This package.json only exists to host pre-commit tooling.",
+  "scripts": {
+    "prepare": "husky",
+    "lint:client": "npm --prefix client run lint",
+    "format:client": "npm --prefix client run format"
+  },
+  "lint-staged": {
+    "client/src/**/*.{ts,tsx}": [
+      "npm --prefix client run lint:fix --",
+      "npm --prefix client exec -- prettier --write"
+    ],
+    "client/src/**/*.{css,json,md}": [
+      "npm --prefix client exec -- prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10"
+  }
+}

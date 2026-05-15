@@ -1,0 +1,41 @@
+# Node / Vite
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+coverage/
+
+# .NET
+bin/
+obj/
+out/
+*.user
+*.suo
+.vs/
+TestResults/
+*.coverage
+*.coveragexml
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+.env.production
+*.pfx
+*.pem
+appsettings.Development.json
+appsettings.*.Local.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Tooling
+*.log
+.vercel
+
+# Claude Code (commit shared config; ignore per-dev overrides)
+.claude/settings.local.json
+.claude/.credentials/

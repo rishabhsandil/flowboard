@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe build*)",
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe test*)",
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe restore*)",
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe format*)",
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe --info)",
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe --list-sdks)",
+      "Bash(npm install*)",
+      "Bash(npm run build*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run test*)",
+      "Bash(npm run typecheck*)",
+      "Bash(npx tsc*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git show*)",
+      "Bash(Get-Process FlowBoard.Api*)",
+      "Bash(Stop-Process*FlowBoard.Api*)",
+      "Read(./**)",
+      "Edit(./**)",
+      "Write(./**)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(rm -rf*)",
+      "Bash(Remove-Item -Recurse -Force*)",
+      "Bash(*--no-verify*)",
+      "Bash(psql*-c*DROP DATABASE*)",
+      "Bash(psql*-c*DROP SCHEMA*)",
+      "Read(./appsettings.Development.json)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./**/secrets.json)"
+    ],
+    "ask": [
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe run*)",
+      "Bash(C:\\Program Files\\dotnet\\dotnet.exe publish*)",
+      "Bash(npm run dev*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git checkout*)",
+      "Bash(git merge*)",
+      "Bash(git rebase*)",
+      "Bash(psql*)"
+    ]
+  },
+  "env": {
+    "ASPNETCORE_ENVIRONMENT": "Development",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1"
+  }
+}

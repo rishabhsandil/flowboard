@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Dark theme (default) — matches the original FlowBoard palette. */
+  :root,
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --bg: 12 12 14;
+    --bg-subtle: 17 17 20;
+    --bg-panel: 20 20 24;
+    --border: 30 30 34;
+    --border-strong: 42 42 48;
+    --text: 237 237 234;
+    --text-muted: 136 136 132;
+    --text-dim: 90 90 88;
+    --accent: 34 211 238;
+    --accent-dim: 14 116 144;
+    --priority-critical: 239 68 68;
+    --priority-high: 249 115 22;
+    --priority-medium: 234 179 8;
+    --priority-low: 82 82 91;
+    --grain-opacity: 0.025;
+    --grain-rgb: 1 1 1;
+    --selection-bg: 34 211 238;
+    --selection-fg: 12 12 14;
+  }
+
+  /* Light theme — high-contrast, paper-ish surfaces with the same accent. */
+  :root[data-theme='light'] {
+    color-scheme: light;
+    --bg: 250 250 250;
+    --bg-subtle: 244 244 245;
+    --bg-panel: 255 255 255;
+    --border: 228 228 231;
+    --border-strong: 212 212 216;
+    --text: 24 24 27;
+    --text-muted: 82 82 91;
+    --text-dim: 113 113 122;
+    --accent: 8 145 178;
+    --accent-dim: 21 94 117;
+    --priority-critical: 220 38 38;
+    --priority-high: 234 88 12;
+    --priority-medium: 202 138 4;
+    --priority-low: 161 161 170;
+    --grain-opacity: 0.04;
+    --grain-rgb: 0 0 0;
+    --selection-bg: 8 145 178;
+    --selection-fg: 255 255 255;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--text));
+    background-image: radial-gradient(ellipse at top, rgb(var(--accent) / 0.04), transparent 60%);
+  }
+  ::selection {
+    background: rgb(var(--selection-bg));
+    color: rgb(var(--selection-fg));
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5
+           border border-border text-sm font-medium
+           bg-bg-subtle hover:border-border-strong
+           transition-colors duration-150;
+  }
+  .btn-primary {
+    @apply btn border-accent text-accent hover:bg-accent/10;
+  }
+  .btn-ghost {
+    @apply btn border-transparent bg-transparent text-text-muted
+           hover:text-text hover:bg-bg-subtle;
+  }
+  .input {
+    @apply w-full bg-bg-subtle border border-border px-3 py-2
+           text-text placeholder:text-text-dim
+           focus:outline-none focus:border-accent transition-colors;
+  }
+  .panel {
+    @apply bg-bg-panel border border-border;
+  }
+  .mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  .heading {
+    @apply mono uppercase tracking-wider text-text;
+  }
+
+  /* Prose colors follow the app's CSS-variable theme. */
+  .prose {
+    --tw-prose-body: rgb(var(--text));
+    --tw-prose-headings: rgb(var(--text));
+    --tw-prose-lead: rgb(var(--text-muted));
+    --tw-prose-links: rgb(var(--accent));
+    --tw-prose-bold: rgb(var(--text));
+    --tw-prose-counters: rgb(var(--text-muted));
+    --tw-prose-bullets: rgb(var(--text-muted));
+    --tw-prose-hr: rgb(var(--border-strong));
+    --tw-prose-quotes: rgb(var(--text-muted));
+    --tw-prose-quote-borders: rgb(var(--border-strong));
+    --tw-prose-captions: rgb(var(--text-muted));
+    --tw-prose-code: rgb(var(--accent));
+    --tw-prose-pre-code: rgb(var(--text));
+    --tw-prose-pre-bg: rgb(var(--bg-subtle));
+    --tw-prose-th-borders: rgb(var(--border-strong));
+    --tw-prose-td-borders: rgb(var(--border));
+  }
+}
