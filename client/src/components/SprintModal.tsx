@@ -1,10 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../lib/api';
 import { useEscapeKey } from '../lib/useEscapeKey';
 import { confirmDialog } from '../lib/confirmDialog';
 import { getApiError } from '../types/api';
 import type { Sprint } from '../types';
+import { MarkdownToolbar } from './MarkdownToolbar';
 
 interface Props {
   projectId: string;
@@ -30,6 +31,8 @@ export function SprintModal({ projectId, sprint, onClose, onSaved }: Props) {
   const [status, setStatus] = useState<Sprint['status']>(sprint?.status ?? 'planned');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const goalRef = useRef<HTMLTextAreaElement>(null);
   useEscapeKey(onClose);
 
   useEffect(() => {
@@ -143,12 +146,16 @@ export function SprintModal({ projectId, sprint, onClose, onSaved }: Props) {
                   </Field>
 
                   <Field label="Sprint Goal">
-                    <textarea
-                      className="input mono min-h-[160px] w-full resize-y bg-bg-soft/10 focus:bg-transparent"
-                      value={goal}
-                      onChange={(e) => setGoal(e.target.value)}
-                      placeholder="What does this sprint aim to deliver?"
-                    />
+                    <div className="border border-border focus-within:border-accent rounded">
+                      <MarkdownToolbar textareaRef={goalRef} value={goal} onChange={setGoal} />
+                      <textarea
+                        ref={goalRef}
+                        className="input mono min-h-[160px] border-0 rounded-none rounded-b w-full resize-y bg-bg-soft/10 focus:bg-transparent focus:ring-0"
+                        value={goal}
+                        onChange={(e) => setGoal(e.target.value)}
+                        placeholder="What does this sprint aim to deliver?"
+                      />
+                    </div>
                   </Field>
                 </div>
 

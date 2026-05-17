@@ -1,10 +1,11 @@
-﻿import { useState } from 'react';
+﻿import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useEscapeKey } from '../lib/useEscapeKey';
 import type { EpicWithProgress, Priority, Sprint } from '../types';
 import type { Paged } from '../types/api';
+import { MarkdownToolbar } from './MarkdownToolbar';
 
 interface Props {
   projectId: string;
@@ -29,11 +30,14 @@ export function CreateIssueModal({
   onCreated,
 }: Props) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [points, setPoints] = useState(0);
   const [epicId, setEpicId] = useState<string>(defaultEpicId ?? '');
   const [sprintId, setSprintId] = useState<string>(defaultSprintId ?? '');
   const [loading, setLoading] = useState(false);
+
+  const descRef = useRef<HTMLTextAreaElement>(null);
   useEscapeKey(onClose);
 
   const { data: epics } = useQuery({
@@ -54,6 +58,7 @@ export function CreateIssueModal({
     try {
       await api.post(`/projects/${projectId}/issues`, {
         title,
+        description: description.trim() || null,
         priority,
         storyPoints: points,
         columnId: firstColumnId,
@@ -102,7 +107,7 @@ export function CreateIssueModal({
             </button>
           </div>
 
-          <form onSubmit={submit} className="p-6 space-y-5">
+          <form onSubmit={submit} className="p-6 space-y-5 max-h-[85vh] overflow-y-auto">
             <Field label="Title">
               <input
                 className="input mono w-full bg-bg-soft/10 focus:bg-transparent"
@@ -112,6 +117,23 @@ export function CreateIssueModal({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
+            </Field>
+
+            <Field label="Description">
+              <div className="border border-border focus-within:border-accent rounded">
+                <MarkdownToolbar
+                  textareaRef={descRef}
+                  value={description}
+                  onChange={setDescription}
+                />
+                <textarea
+                  ref={descRef}
+                  className="input mono min-h-[120px] border-0 rounded-none rounded-b focus:ring-0 bg-bg-soft/10 focus:bg-transparent"
+                  placeholder="Add details... (optional)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
             </Field>
 
             <div className="grid grid-cols-2 gap-4">

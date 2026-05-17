@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { confirmDialog } from '../lib/confirmDialog';
 import type { Comment } from '../types';
+import { MarkdownToolbar } from './MarkdownToolbar';
 
 interface Props {
   issueId: string;
@@ -23,6 +24,9 @@ export function IssueComments({ issueId, currentUserId, onChange }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
+
+  const draftRef = useRef<HTMLTextAreaElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
 
   async function load() {
     const r = await api.get<{ items: Comment[] }>(`/issues/${issueId}/comments`);
@@ -97,12 +101,20 @@ export function IssueComments({ issueId, currentUserId, onChange }: Props) {
 
               {isEditing ? (
                 <div className="space-y-2">
-                  <textarea
-                    className="input mono min-h-[80px]"
-                    value={editBody}
-                    onChange={(e) => setEditBody(e.target.value)}
-                    autoFocus
-                  />
+                  <div className="border border-border focus-within:border-accent rounded">
+                    <MarkdownToolbar
+                      textareaRef={editRef}
+                      value={editBody}
+                      onChange={setEditBody}
+                    />
+                    <textarea
+                      ref={editRef}
+                      className="input mono min-h-[100px] border-0 rounded-none rounded-b focus:ring-0"
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <button className="btn text-xs" onClick={() => saveEdit(c.id)}>
                       save
@@ -148,12 +160,16 @@ export function IssueComments({ issueId, currentUserId, onChange }: Props) {
       )}
 
       <div className="pt-2">
-        <textarea
-          className="input mono min-h-[80px]"
-          placeholder="Write a comment… use @name to mention a project member."
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
+        <div className="border border-border focus-within:border-accent rounded">
+          <MarkdownToolbar textareaRef={draftRef} value={draft} onChange={setDraft} />
+          <textarea
+            ref={draftRef}
+            className="input mono min-h-[100px] border-0 rounded-none rounded-b focus:ring-0"
+            placeholder="Write a comment… use @name to mention a project member."
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+        </div>
         <div className="flex justify-end mt-2">
           <button
             className="btn"

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import clsx from 'clsx';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { useEscapeKey } from '../lib/useEscapeKey';
@@ -45,6 +46,7 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
   const [descEditing, setDescEditing] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
   // Bumped on any mutation that should trigger the activity feed to refresh.
   const [activityKey, setActivityKey] = useState(0);
@@ -186,19 +188,48 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
                             textareaRef={descTextareaRef}
                             value={issue.description ?? ''}
                             onChange={(next) => setIssue({ ...issue, description: next })}
+                            onTogglePreview={setPreviewing}
+                            isPreviewing={previewing}
                           />
-                          <textarea
-                            ref={descTextareaRef}
-                            autoFocus
-                            className="input mono min-h-[200px] border-0 rounded-none rounded-b w-full resize-y focus:ring-0 bg-bg"
-                            placeholder="Add a description... (supports markdown)"
-                            value={issue.description ?? ''}
-                            onChange={(e) => setIssue({ ...issue, description: e.target.value })}
-                            onBlur={(e) => {
-                              patch({ description: e.target.value });
-                              setDescEditing(false);
-                            }}
-                          />
+                          <div
+                            className={clsx(
+                              'flex divide-x divide-border',
+                              previewing ? 'flex-col md:flex-row' : 'flex-col',
+                            )}
+                          >
+                            <textarea
+                              ref={descTextareaRef}
+                              autoFocus
+                              className={clsx(
+                                'input mono min-h-[200px] border-0 rounded-none rounded-b w-full resize-y focus:ring-0 bg-bg',
+                                previewing && 'md:w-1/2',
+                              )}
+                              placeholder="Add a description... (supports markdown)"
+                              value={issue.description ?? ''}
+                              onChange={(e) => setIssue({ ...issue, description: e.target.value })}
+                              onBlur={(e) => {
+                                // Only save and close if we didn't just click the toolbar
+                                // (mousedown on toolbar prevents default so blur shouldn't fire early,
+                                // but we use a small timeout to be safe with React state flushes)
+                                setTimeout(() => {
+                                  if (document.activeElement !== descTextareaRef.current) {
+                                    patch({ description: e.target.value });
+                                    setDescEditing(false);
+                                  }
+                                }, 100);
+                              }}
+                            />
+                            {previewing && (
+                              <div className="md:w-1/2 p-4 overflow-y-auto min-h-[200px] prose prose-invert max-w-none bg-bg-subtle/20">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  rehypePlugins={[rehypeSanitize]}
+                                >
+                                  {issue.description ?? ''}
+                                </ReactMarkdown>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div

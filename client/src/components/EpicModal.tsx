@@ -1,10 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../lib/api';
 import { useEscapeKey } from '../lib/useEscapeKey';
 import { confirmDialog } from '../lib/confirmDialog';
 import { getApiError } from '../types/api';
 import type { EpicWithProgress } from '../types';
+import { MarkdownToolbar } from './MarkdownToolbar';
 
 interface Props {
   projectId: string;
@@ -33,6 +34,7 @@ export function EpicModal({ projectId, epic, onClose, onSaved }: Props) {
   const [dueDate, setDueDate] = useState(toDateInput(epic?.dueDate));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
   useEscapeKey(onClose);
 
   useEffect(() => {
@@ -143,12 +145,20 @@ export function EpicModal({ projectId, epic, onClose, onSaved }: Props) {
                   </Field>
 
                   <Field label="Description">
-                    <textarea
-                      className="input mono min-h-[200px] w-full resize-y bg-bg-soft/10 focus:bg-transparent"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="What does this epic cover? (Supports markdown)"
-                    />
+                    <div className="border border-border focus-within:border-accent rounded">
+                      <MarkdownToolbar
+                        textareaRef={descRef}
+                        value={description}
+                        onChange={setDescription}
+                      />
+                      <textarea
+                        ref={descRef}
+                        className="input mono min-h-[200px] border-0 rounded-none rounded-b w-full resize-y bg-bg-soft/10 focus:bg-transparent focus:ring-0"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="What does this epic cover? (Supports markdown)"
+                      />
+                    </div>
                   </Field>
                 </div>
 
