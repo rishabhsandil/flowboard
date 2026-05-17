@@ -1,4 +1,5 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useEscapeKey } from '../lib/useEscapeKey';
@@ -68,81 +69,133 @@ export function CreateIssueModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div className="panel w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-        <h3 className="heading text-lg mb-1">new issue</h3>
-        {parentId && <p className="mono text-xs text-text-muted mb-4">// creating as sub-issue</p>}
-        <form onSubmit={submit} className="space-y-3">
-          <input
-            className="input mono"
-            placeholder="title"
-            autoFocus
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <select
-              className="input mono"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as Priority)}
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      >
+        <motion.div
+          className="panel w-full max-w-lg bg-bg shadow-2xl overflow-hidden border border-border"
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-border bg-bg-soft/30 flex items-center justify-between">
+            <div>
+              <h3 className="heading text-lg font-bold">New Issue</h3>
+              {parentId && (
+                <p className="mono text-[10px] uppercase tracking-widest text-accent mt-0.5">
+                  // creating as sub-issue
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="btn-ghost text-xl px-2 hover:bg-bg-soft rounded transition-colors"
             >
-              {priorities.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            <input
-              className="input mono"
-              type="number"
-              min={0}
-              max={100}
-              placeholder="points"
-              value={points}
-              onChange={(e) => setPoints(Math.max(0, parseInt(e.target.value || '0')))}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <select
-              className="input mono"
-              value={epicId}
-              onChange={(e) => setEpicId(e.target.value)}
-            >
-              <option value="">epic — none</option>
-              {(epics ?? []).map((ep) => (
-                <option key={ep.id} value={ep.id}>
-                  {ep.title}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input mono"
-              value={sprintId}
-              onChange={(e) => setSprintId(e.target.value)}
-            >
-              <option value="">sprint — none</option>
-              {(sprints ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.status !== 'planned' ? ` · ${s.status}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <button type="button" onClick={onClose} className="btn-ghost">
-              cancel
-            </button>
-            <button className="btn-primary" disabled={loading}>
-              {loading ? 'creating…' : 'create →'}
+              ×
             </button>
           </div>
-        </form>
-      </div>
+
+          <form onSubmit={submit} className="p-6 space-y-5">
+            <Field label="Title">
+              <input
+                className="input mono w-full bg-bg-soft/10 focus:bg-transparent"
+                placeholder="What needs to be done?"
+                autoFocus
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Priority">
+                <select
+                  className="input mono w-full bg-bg-soft/10"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as Priority)}
+                >
+                  {priorities.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Story Points">
+                <input
+                  className="input mono w-full bg-bg-soft/10"
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="0"
+                  value={points}
+                  onChange={(e) => setPoints(Math.max(0, parseInt(e.target.value || '0')))}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              <Field label="Epic">
+                <select
+                  className="input mono w-full bg-bg-soft/10"
+                  value={epicId}
+                  onChange={(e) => setEpicId(e.target.value)}
+                >
+                  <option value="">— None —</option>
+                  {(epics ?? []).map((ep) => (
+                    <option key={ep.id} value={ep.id}>
+                      {ep.title}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Sprint">
+                <select
+                  className="input mono w-full bg-bg-soft/10"
+                  value={sprintId}
+                  onChange={(e) => setSprintId(e.target.value)}
+                >
+                  <option value="">— None —</option>
+                  {(sprints ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                      {s.status !== 'planned' ? ` · ${s.status}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end pt-4 border-t border-border mt-6">
+              <button type="button" onClick={onClose} className="btn-ghost px-6">
+                Cancel
+              </button>
+              <button className="btn-primary px-8" disabled={loading}>
+                {loading ? 'Creating...' : 'Create Issue →'}
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="mono text-[10px] uppercase tracking-widest text-text-dim mb-1.5 block font-semibold">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

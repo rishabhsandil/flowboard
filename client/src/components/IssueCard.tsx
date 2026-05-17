@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+﻿import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { BoardIssue } from '../types';
 import { priorityBorder, priorityLabel } from '../lib/priority';
@@ -26,33 +26,36 @@ export function IssueCard({ issue, onClick, dragging }: Props) {
     <div
       onClick={onClick}
       className={clsx(
-        'bg-bg-panel border border-border border-l-[3px] p-3 cursor-pointer',
-        'hover:border-border-strong transition-colors',
+        'group bg-bg-panel border border-border border-l-[3px] p-4 cursor-pointer rounded-sm shadow-sm relative overflow-hidden',
+        'hover:border-border-strong hover:shadow-md transition-all duration-200',
         priorityBorder[issue.priority],
-        dragging && 'shadow-2xl shadow-accent/20 rotate-1',
+        dragging && 'shadow-2xl shadow-accent/30 rotate-[1deg] scale-[1.02] z-50 bg-bg-subtle',
       )}
     >
-      <p className="text-sm leading-snug mb-2 line-clamp-3">{issue.title}</p>
+      <div className="flex justify-between items-start gap-3 mb-2.5">
+        <p className="text-sm leading-snug font-medium line-clamp-3 group-hover:text-accent transition-colors">
+          {issue.title}
+        </p>
+      </div>
 
       {issue.epic_title && (
-        <div className="mb-2">
+        <div className="mb-3">
           <EpicPill title={issue.epic_title} color={issue.epic_color ?? '#22d3ee'} />
         </div>
       )}
 
       {issue.labels && issue.labels.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           {issue.labels.map((l) => (
             <button
               key={l.id}
               type="button"
               onClick={(e) => jumpToLabel(e, l.id)}
-              title={`filter issues by ${l.name}`}
-              className="mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border hover:opacity-80 transition-opacity"
+              title={`Filter issues by ${l.name}`}
+              className="mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded border border-transparent hover:border-current transition-all bg-bg-soft/50"
               style={{
-                borderColor: l.color,
                 color: l.color,
-                background: `${l.color}1a`,
+                backgroundColor: `${l.color}15`,
               }}
             >
               {l.name}
@@ -61,13 +64,15 @@ export function IssueCard({ issue, onClick, dragging }: Props) {
         </div>
       )}
 
-      <div className="flex items-center justify-between mono text-[10px] uppercase tracking-wider">
-        <span className="text-text-dim">{priorityLabel[issue.priority]}</span>
-        {issue.story_points > 0 && (
-          <span className="px-1.5 py-0.5 border border-border text-text-muted">
-            {issue.story_points}pt
-          </span>
-        )}
+      <div className="flex items-center justify-between pt-2 border-t border-border/40 mono text-[9px] uppercase tracking-widest">
+        <span className="text-text-dim/80 font-semibold">{priorityLabel[issue.priority]}</span>
+        <div className="flex items-center gap-2">
+          {issue.story_points > 0 && (
+            <span className="px-1.5 py-0.5 bg-bg-soft text-text-muted rounded-sm border border-border/50">
+              {issue.story_points} pt
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

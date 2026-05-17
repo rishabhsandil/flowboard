@@ -1,4 +1,4 @@
-interface Props {
+﻿interface Props {
   title: string;
   color: string;
 }
@@ -6,10 +6,14 @@ interface Props {
 export function EpicPill({ title, color }: Props) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-1.5 py-0.5 mono text-[10px] uppercase tracking-wider border"
-      style={{ borderColor: color, color }}
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 mono text-[9px] uppercase tracking-widest border rounded shadow-sm"
+      style={{
+        borderColor: `${color}40`,
+        color,
+        backgroundColor: `${color}10`,
+      }}
     >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+      <span className="w-1.5 h-1.5 rounded-full shadow-sm" style={{ background: color }} />
       {title}
     </span>
   );

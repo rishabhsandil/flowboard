@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../lib/api';
 import { useEscapeKey } from '../lib/useEscapeKey';
 import { confirmDialog } from '../lib/confirmDialog';
@@ -93,122 +94,158 @@ export function SprintModal({ projectId, sprint, onClose, onSaved }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div className="panel w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <p className="mono text-xs uppercase tracking-widest text-text-dim">
-              // {isEdit ? 'edit sprint' : 'new sprint'}
-            </p>
-            <h3 className="heading text-lg mt-1">{name || 'untitled'}</h3>
-          </div>
-          <button onClick={onClose} className="btn-ghost text-xl px-2">
-            ×
-          </button>
-        </div>
-
-        <form onSubmit={submit} className="space-y-4">
-          <Field label="name">
-            <input
-              className="input mono"
-              autoFocus
-              required
-              maxLength={80}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sprint 12 — Q2 kickoff"
-            />
-          </Field>
-
-          <Field label="goal">
-            <textarea
-              className="input mono min-h-[60px]"
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              placeholder="what does this sprint aim to deliver?"
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="start date">
-              <input
-                type="date"
-                className="input mono"
-                required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </Field>
-            <Field label="end date">
-              <input
-                type="date"
-                className="input mono"
-                required
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <Field label="status">
-            <div className="grid grid-cols-3 gap-2">
-              {STATUSES.map((s) => (
-                <button
-                  type="button"
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  className={`mono text-xs uppercase tracking-widest py-2 border transition-colors ${
-                    status === s
-                      ? 'border-accent text-accent bg-bg-subtle'
-                      : 'border-border text-text-muted hover:text-text'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 bg-black/60 z-50 flex justify-end"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      >
+        <motion.div
+          className="h-full w-full max-w-2xl panel border-l shadow-2xl flex flex-col bg-bg overflow-hidden relative"
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0 bg-bg-soft/30">
+            <div className="flex items-center gap-3">
+              <p className="mono text-xs uppercase tracking-widest text-text-dim">
+                // {isEdit ? 'edit sprint' : 'new sprint'}
+              </p>
             </div>
-            <p className="mono text-[10px] uppercase tracking-widest text-text-dim mt-1.5">
-              {statusHint[status]}
-            </p>
-          </Field>
+            <button
+              onClick={onClose}
+              className="btn-ghost text-xl px-2 hover:bg-bg-soft rounded transition-colors"
+            >
+              ×
+            </button>
+          </div>
 
-          {error && <p className="mono text-xs text-priority-critical">{error}</p>}
+          <form onSubmit={submit} className="flex-1 overflow-y-auto flex flex-col">
+            <div className="flex-1 p-6 md:p-8 space-y-8">
+              <div className="flex flex-col md:flex-row gap-8">
+                {/* Main Content */}
+                <div className="flex-1 space-y-6 min-w-0">
+                  <Field label="Sprint Name">
+                    <input
+                      className="input mono text-2xl font-bold border-transparent px-0 hover:border-border focus:border-accent transition-colors w-full bg-transparent"
+                      autoFocus
+                      required
+                      maxLength={80}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Sprint 12 — Q2 kickoff"
+                    />
+                  </Field>
 
-          <div className="flex justify-between items-center pt-3 border-t border-border">
-            {isEdit ? (
-              <button
-                type="button"
-                onClick={remove}
-                disabled={busy}
-                className="btn-ghost text-priority-critical text-xs"
-              >
-                delete
+                  <Field label="Sprint Goal">
+                    <textarea
+                      className="input mono min-h-[160px] w-full resize-y bg-bg-soft/10 focus:bg-transparent"
+                      value={goal}
+                      onChange={(e) => setGoal(e.target.value)}
+                      placeholder="What does this sprint aim to deliver?"
+                    />
+                  </Field>
+                </div>
+
+                {/* Metadata Column */}
+                <div className="w-full md:w-64 flex-shrink-0 space-y-6">
+                  <div className="p-4 border border-border rounded bg-bg-soft/20 space-y-5">
+                    <Field label="Status">
+                      <div className="flex flex-col gap-1.5">
+                        {STATUSES.map((s) => (
+                          <button
+                            type="button"
+                            key={s}
+                            onClick={() => setStatus(s)}
+                            className={`mono text-[10px] uppercase tracking-widest py-2 px-3 border transition-colors text-left rounded ${
+                              status === s
+                                ? 'border-accent text-accent bg-accent/5'
+                                : 'border-border text-text-muted hover:text-text hover:border-border-strong'
+                            }`}
+                          >
+                            <span className="flex justify-between items-center">
+                              {s}
+                              {status === s && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mono text-[9px] uppercase tracking-tighter text-text-dim mt-2 leading-relaxed">
+                        {statusHint[status]}
+                      </p>
+                    </Field>
+                  </div>
+
+                  <div className="space-y-4 pt-2 border-t border-border/50">
+                    <Field label="Start Date">
+                      <input
+                        type="date"
+                        className="input mono text-sm w-full bg-bg-soft/20 py-2"
+                        required
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="End Date">
+                      <input
+                        type="date"
+                        className="input mono text-sm w-full bg-bg-soft/20 py-2"
+                        required
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+
+                  {isEdit && (
+                    <div className="pt-6 mt-6 border-t border-border">
+                      <button
+                        type="button"
+                        onClick={remove}
+                        disabled={busy}
+                        className="btn-ghost text-priority-critical w-full flex justify-center py-2 hover:bg-priority-critical/10 transition-colors"
+                      >
+                        Delete Sprint
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-priority-critical/10 border border-priority-critical/20 rounded">
+                  <p className="mono text-xs text-priority-critical">{error}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="px-6 py-4 border-t border-border bg-bg-soft/30 flex justify-end gap-3 shrink-0">
+              <button type="button" onClick={onClose} className="btn-ghost px-6">
+                Cancel
               </button>
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              <button type="button" onClick={onClose} className="btn-ghost">
-                cancel
-              </button>
-              <button className="btn-primary" disabled={busy}>
-                {busy ? '…' : isEdit ? 'save' : 'create →'}
+              <button className="btn-primary px-8" disabled={busy}>
+                {busy ? '...' : isEdit ? 'Save Changes' : 'Create Sprint →'}
               </button>
             </div>
-          </div>
-        </form>
-      </div>
-    </div>
+          </form>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mono text-xs uppercase tracking-widest text-text-dim mb-1.5 block">
+      <label className="mono text-[10px] uppercase tracking-widest text-text-dim mb-2 block font-semibold">
         {label}
       </label>
       {children}

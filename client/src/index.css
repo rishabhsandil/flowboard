@@ -3,47 +3,47 @@
 @tailwind utilities;
 
 @layer base {
-  /* Dark theme (default) — matches the original FlowBoard palette. */
+  /* Dark theme (default) — enhanced contrast */
   :root,
   :root[data-theme='dark'] {
     color-scheme: dark;
-    --bg: 12 12 14;
-    --bg-subtle: 17 17 20;
-    --bg-panel: 20 20 24;
-    --border: 30 30 34;
-    --border-strong: 42 42 48;
-    --text: 237 237 234;
-    --text-muted: 136 136 132;
-    --text-dim: 90 90 88;
+    --bg: 9 9 11;
+    --bg-subtle: 18 18 22;
+    --bg-panel: 28 28 32;
+    --border: 45 45 50;
+    --border-strong: 70 70 75;
+    --text: 245 245 245;
+    --text-muted: 156 163 175;
+    --text-dim: 107 114 128;
     --accent: 34 211 238;
     --accent-dim: 14 116 144;
     --priority-critical: 239 68 68;
     --priority-high: 249 115 22;
     --priority-medium: 234 179 8;
     --priority-low: 82 82 91;
-    --grain-opacity: 0.025;
-    --grain-rgb: 1 1 1;
+    --grain-opacity: 0.03;
+    --grain-rgb: 255 255 255;
     --selection-bg: 34 211 238;
-    --selection-fg: 12 12 14;
+    --selection-fg: 9 9 11;
   }
 
-  /* Light theme — high-contrast, paper-ish surfaces with the same accent. */
+  /* Light theme — high-contrast surfaces */
   :root[data-theme='light'] {
     color-scheme: light;
-    --bg: 250 250 250;
-    --bg-subtle: 244 244 245;
+    --bg: 243 244 246;
+    --bg-subtle: 229 231 235;
     --bg-panel: 255 255 255;
-    --border: 228 228 231;
-    --border-strong: 212 212 216;
-    --text: 24 24 27;
-    --text-muted: 82 82 91;
-    --text-dim: 113 113 122;
+    --border: 209 213 219;
+    --border-strong: 156 163 175;
+    --text: 17 24 39;
+    --text-muted: 75 85 99;
+    --text-dim: 107 114 128;
     --accent: 8 145 178;
     --accent-dim: 21 94 117;
     --priority-critical: 220 38 38;
     --priority-high: 234 88 12;
     --priority-medium: 202 138 4;
-    --priority-low: 161 161 170;
+    --priority-low: 156 163 175;
     --grain-opacity: 0.04;
     --grain-rgb: 0 0 0;
     --selection-bg: 8 145 178;
@@ -58,7 +58,7 @@
   body {
     background-color: rgb(var(--bg));
     color: rgb(var(--text));
-    background-image: radial-gradient(ellipse at top, rgb(var(--accent) / 0.04), transparent 60%);
+    background-image: radial-gradient(ellipse at top, rgb(var(--accent) / 0.05), transparent 70%);
   }
   ::selection {
     background: rgb(var(--selection-bg));
@@ -69,30 +69,30 @@
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-3 py-1.5
-           border border-border text-sm font-medium
-           bg-bg-subtle hover:border-border-strong
-           transition-colors duration-150;
+           border border-border text-sm font-medium rounded shadow-sm
+           bg-bg-panel hover:border-border-strong hover:bg-bg-subtle
+           transition-all duration-150;
   }
   .btn-primary {
-    @apply btn border-accent text-accent hover:bg-accent/10;
+    @apply btn border-accent text-accent bg-accent/5 hover:bg-accent/10 hover:border-accent shadow-accent/20;
   }
   .btn-ghost {
-    @apply btn border-transparent bg-transparent text-text-muted
-           hover:text-text hover:bg-bg-subtle;
+    @apply btn border-transparent bg-transparent text-text-muted shadow-none
+           hover:text-text hover:bg-bg-subtle hover:border-transparent;
   }
   .input {
-    @apply w-full bg-bg-subtle border border-border px-3 py-2
+    @apply w-full bg-bg-panel border border-border px-3 py-2 rounded shadow-sm
            text-text placeholder:text-text-dim
-           focus:outline-none focus:border-accent transition-colors;
+           focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all;
   }
   .panel {
-    @apply bg-bg-panel border border-border;
+    @apply bg-bg-panel border border-border shadow-md rounded-md;
   }
   .mono {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
   }
   .heading {
-    @apply mono uppercase tracking-wider text-text;
+    @apply mono uppercase tracking-wider text-text font-semibold;
   }
 
   /* Prose colors follow the app's CSS-variable theme. */

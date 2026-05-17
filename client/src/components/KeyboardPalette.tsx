@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { Project } from '../types';
@@ -10,8 +11,6 @@ import type { Paged } from '../types/api';
  * in the app (except when the user is typing in an input/textarea/
  * contenteditable). Filters across navigation actions and your projects
  * so jumping to a different board is one keystroke + a few letters.
- *
- * Mounted once in App.tsx alongside ToastHost / ConfirmDialogHost.
  */
 export function KeyboardPalette() {
   const [open, setOpen] = useState(false);
@@ -21,8 +20,7 @@ export function KeyboardPalette() {
   const nav = useNavigate();
   const { slug } = useParams<{ slug: string }>();
 
-  // Fetch the project list lazily — only when the palette opens. Stays in
-  // the React Query cache so reopening is instant.
+  // Fetch the project list lazily — only when the palette opens.
   const { data: projects } = useQuery({
     queryKey: ['palette-projects'],
     queryFn: async () => (await api.get<Paged<Project>>('/projects')).data.items,
@@ -30,9 +28,6 @@ export function KeyboardPalette() {
     staleTime: 30_000,
   });
 
-  // Global hotkey listener. We treat focus inside form fields as "user is
-  // typing, don't hijack" — except we still allow Cmd/Ctrl+K because that's
-  // the universal palette shortcut (matches VS Code, Linear, etc.).
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       const inField = isTypingTarget(e.target);
@@ -53,8 +48,6 @@ export function KeyboardPalette() {
     return () => window.removeEventListener('keydown', handler);
   }, [open]);
 
-  // Reset state on open and focus the input next tick so the autoFocus
-  // doesn't get stolen by whatever element had focus before.
   useEffect(() => {
     if (open) {
       setQuery('');
@@ -120,7 +113,6 @@ export function KeyboardPalette() {
     );
   }, [commands, query]);
 
-  // Keep highlight in range when the filtered list shrinks.
   useEffect(() => {
     if (highlight >= filtered.length) setHighlight(0);
   }, [filtered.length, highlight]);
@@ -142,54 +134,100 @@ export function KeyboardPalette() {
     }
   }
 
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/60"
-      onClick={() => setOpen(false)}
-    >
-      <div
-        className="w-full max-w-xl bg-bg-panel border border-border shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="type to search…  (↑↓ to move, ↵ to run, esc to close)"
-          className="w-full bg-transparent border-0 border-b border-border px-4 py-3 mono text-sm focus:outline-none focus:ring-0"
-        />
-        <ul className="max-h-80 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <li className="px-4 py-3 mono text-xs text-text-dim">no commands match</li>
-          ) : (
-            filtered.map((c, i) => (
-              <li
-                key={c.id}
-                onMouseEnter={() => setHighlight(i)}
-                onClick={() => {
-                  c.run();
-                  setOpen(false);
-                }}
-                className={`px-4 py-2 mono text-xs cursor-pointer flex items-center justify-between ${
-                  i === highlight ? 'bg-accent/10 text-accent' : 'text-text hover:bg-bg-soft/50'
-                }`}
-              >
-                <span>{c.label}</span>
-                {c.hint && <span className="text-text-dim text-[10px]">{c.hint}</span>}
-              </li>
-            ))
-          )}
-        </ul>
-        <div className="px-4 py-2 border-t border-border mono text-[10px] text-text-dim">
-          tip: press <kbd className="px-1 border border-border">?</kbd> or{' '}
-          <kbd className="px-1 border border-border">⌘K</kbd> anywhere to open this
-        </div>
-      </div>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-start justify-center pt-24 px-4 bg-black/60 backdrop-blur-[2px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setOpen(false)}
+        >
+          <motion.div
+            className="w-full max-w-2xl bg-bg shadow-2xl overflow-hidden border border-border"
+            initial={{ y: -20, scale: 0.98, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            exit={{ y: -20, scale: 0.98, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder="Type to search...  (↑↓ to move, ↵ to run)"
+                className="w-full bg-transparent border-0 border-b border-border px-6 py-4 mono text-sm focus:outline-none focus:ring-0 placeholder:text-text-dim/50"
+              />
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto py-2">
+              {filtered.length === 0 ? (
+                <div className="px-6 py-8 text-center">
+                  <p className="mono text-xs text-text-dim uppercase tracking-widest">
+                    No matching commands
+                  </p>
+                </div>
+              ) : (
+                filtered.map((c, i) => (
+                  <div
+                    key={c.id}
+                    onMouseEnter={() => setHighlight(i)}
+                    onClick={() => {
+                      c.run();
+                      setOpen(false);
+                    }}
+                    className={`px-6 py-3 mono text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                      i === highlight
+                        ? 'bg-accent/10 text-accent border-l-2 border-accent'
+                        : 'text-text-muted hover:bg-bg-soft/40 border-l-2 border-transparent'
+                    }`}
+                  >
+                    <span className={i === highlight ? 'font-semibold' : ''}>{c.label}</span>
+                    {c.hint && (
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded ${
+                          i === highlight ? 'bg-accent/20 text-accent' : 'bg-bg-soft text-text-dim'
+                        }`}
+                      >
+                        {c.hint}
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t border-border bg-bg-soft/30 flex items-center justify-between mono text-[10px] uppercase tracking-widest text-text-dim">
+              <div className="flex gap-4">
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-bg-panel border border-border mr-1">
+                    ↑↓
+                  </kbd>{' '}
+                  Navigate
+                </span>
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-bg-panel border border-border mr-1">
+                    ↵
+                  </kbd>{' '}
+                  Select
+                </span>
+              </div>
+              <div>
+                Press{' '}
+                <kbd className="px-1.5 py-0.5 rounded bg-bg-panel border border-border mx-1">
+                  ESC
+                </kbd>{' '}
+                to close
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

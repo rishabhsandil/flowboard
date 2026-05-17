@@ -43,7 +43,7 @@ const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 export function IssueModal({ issueId, onClose, onChange }: Props) {
   const [issue, setIssue] = useState<Issue | null>(null);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'details' | 'comments' | 'activity'>('details');
+  const [tab, setTab] = useState<'comments' | 'activity'>('comments');
   const [descEditing, setDescEditing] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
   // Bumped on any mutation that should trigger the activity feed to refresh.
@@ -123,14 +123,14 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 bg-black/60 z-50"
+        className="fixed inset-0 bg-black/60 z-50 flex justify-end"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
       >
         <motion.div
-          className="absolute right-0 top-0 h-full w-full max-w-lg panel border-l overflow-y-auto"
+          className="h-full w-full max-w-4xl panel border-l shadow-2xl flex flex-col bg-bg overflow-hidden relative"
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
@@ -140,263 +140,299 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
           {!issue ? (
             <div className="p-6 mono text-text-muted">loading…</div>
           ) : (
-            <div className="p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <p className="mono text-xs uppercase tracking-widest text-text-dim">// issue</p>
-                <button onClick={onClose} className="btn-ghost text-xl px-2">
-                  ×
-                </button>
+            <>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0 bg-bg-soft/30">
+                <div className="flex items-center gap-3">
+                  <p className="mono text-xs uppercase tracking-widest text-text-dim"></p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="mono text-xs text-text-dim">
+                    {saving ? 'saving…' : 'auto-saved'}
+                  </span>
+                  <button
+                    onClick={onClose}
+                    className="btn-ghost text-xl px-2 hover:bg-bg-soft rounded"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
 
-              <input
-                className="input mono text-lg"
-                value={issue.title}
-                onChange={(e) => setIssue({ ...issue, title: e.target.value })}
-                onBlur={(e) => patch({ title: e.target.value })}
-              />
-
-              <nav className="flex gap-1 border-b border-border -mx-6 px-6">
-                {(['details', 'comments', 'activity'] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTab(t)}
-                    className={`mono text-xs uppercase tracking-widest px-3 py-2 -mb-px border-b-2 ${
-                      tab === t
-                        ? 'border-accent text-accent'
-                        : 'border-transparent text-text-dim hover:text-text'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </nav>
-
-              {tab === 'details' && (
-                <div className="space-y-5">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="priority">
-                      <select
-                        className="input mono"
-                        value={issue.priority}
-                        onChange={(e) => patch({ priority: e.target.value as Priority })}
-                      >
-                        {priorities.map((p) => (
-                          <option key={p} value={p}>
-                            {p}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="points">
-                      <input
-                        className="input mono"
-                        type="number"
-                        min={0}
-                        value={issue.storyPoints}
-                        onChange={(e) =>
-                          setIssue({ ...issue, storyPoints: parseInt(e.target.value || '0') })
-                        }
-                        onBlur={(e) => patch({ storyPoints: parseInt(e.target.value || '0') })}
-                      />
-                    </Field>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="epic">
-                      <select
-                        className="input mono"
-                        value={issue.epicId ?? ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          patch({ epicId: v === '' ? EMPTY_GUID : v });
-                        }}
-                      >
-                        <option value="">— none —</option>
-                        {(epics ?? []).map((ep) => (
-                          <option key={ep.id} value={ep.id}>
-                            {ep.title}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="sprint">
-                      <select
-                        className="input mono"
-                        value={issue.sprintId ?? ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          patch({ sprintId: v === '' ? EMPTY_GUID : v });
-                        }}
-                      >
-                        <option value="">— none —</option>
-                        {(sprints ?? []).map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                            {s.status !== 'planned' ? ` · ${s.status}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-
-                  {/* Description – click to edit (Jira-style) */}
-                  <div>
-                    <label className="mono text-xs uppercase tracking-widest text-text-dim mb-1.5 block">
-                      description
-                    </label>
-                    {descEditing ? (
-                      <>
-                        <MarkdownToolbar
-                          textareaRef={descTextareaRef}
-                          value={issue.description ?? ''}
-                          onChange={(next) => setIssue({ ...issue, description: next })}
-                        />
-                        <textarea
-                          ref={descTextareaRef}
-                          autoFocus
-                          className="input mono min-h-[120px] rounded-t-none border-t-0 resize-y"
-                          placeholder="supports markdown…"
-                          value={issue.description ?? ''}
-                          onChange={(e) => setIssue({ ...issue, description: e.target.value })}
-                          onBlur={(e) => {
-                            patch({ description: e.target.value });
-                            setDescEditing(false);
-                          }}
-                        />
-                      </>
-                    ) : (
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setDescEditing(true)}
-                        onKeyDown={(e) => e.key === 'Enter' && setDescEditing(true)}
-                        className="prose prose-sm max-w-none border border-border rounded p-3 min-h-[80px] text-sm text-text cursor-text hover:border-border-strong transition-colors"
-                      >
-                        {issue.description?.trim() ? (
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeSanitize]}
-                          >
-                            {issue.description}
-                          </ReactMarkdown>
-                        ) : (
-                          <span className="text-text-dim mono text-xs italic">
-                            click to add a description…
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Parent issue link */}
-                  {issue.parentId && (
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                <div className="flex flex-col md:flex-row gap-8">
+                  {/* Left Column - Main Content */}
+                  <div className="flex-1 space-y-8 min-w-0">
+                    {/* Title */}
                     <div>
-                      <label className="mono text-xs uppercase tracking-widest text-text-dim mb-1.5 block">
-                        parent issue
+                      <input
+                        className="input mono text-2xl font-bold border-transparent px-0 hover:border-border focus:border-accent transition-colors w-full bg-transparent"
+                        value={issue.title}
+                        onChange={(e) => setIssue({ ...issue, title: e.target.value })}
+                        onBlur={(e) => patch({ title: e.target.value })}
+                        placeholder="Issue title"
+                      />
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="mono text-xs uppercase tracking-widest text-text-dim mb-3 block">
+                        Description
                       </label>
-                      <div className="flex items-center justify-between border border-border px-3 py-2">
-                        <span className="text-sm truncate">
-                          {parentIssue ? parentIssue.title : '…'}
-                        </span>
-                        <button
-                          className="mono text-[10px] text-text-dim hover:text-priority-critical ml-2 flex-shrink-0"
-                          title="Detach from parent"
-                          onClick={() => patch({ parentId: EMPTY_GUID })}
+                      {descEditing ? (
+                        <div className="border border-border focus-within:border-accent rounded">
+                          <MarkdownToolbar
+                            textareaRef={descTextareaRef}
+                            value={issue.description ?? ''}
+                            onChange={(next) => setIssue({ ...issue, description: next })}
+                          />
+                          <textarea
+                            ref={descTextareaRef}
+                            autoFocus
+                            className="input mono min-h-[200px] border-0 rounded-none rounded-b w-full resize-y focus:ring-0 bg-bg"
+                            placeholder="Add a description... (supports markdown)"
+                            value={issue.description ?? ''}
+                            onChange={(e) => setIssue({ ...issue, description: e.target.value })}
+                            onBlur={(e) => {
+                              patch({ description: e.target.value });
+                              setDescEditing(false);
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setDescEditing(true)}
+                          onKeyDown={(e) => e.key === 'Enter' && setDescEditing(true)}
+                          className="prose prose-sm max-w-none rounded p-4 min-h-[120px] text-sm text-text cursor-text hover:bg-bg-soft/40 transition-colors border border-transparent hover:border-border"
                         >
-                          ×
+                          {issue.description?.trim() ? (
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              rehypePlugins={[rehypeSanitize]}
+                            >
+                              {issue.description}
+                            </ReactMarkdown>
+                          ) : (
+                            <span className="text-text-dim mono text-xs italic">
+                              Add a description…
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sub-issues */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="mono text-xs uppercase tracking-widest text-text-dim">
+                          Sub-issues {children && children.length > 0 && `(${children.length})`}
+                        </label>
+                        <button
+                          className="mono text-[10px] uppercase tracking-widest text-accent hover:underline flex items-center gap-1"
+                          onClick={() => setAddingChild(true)}
+                        >
+                          <span className="text-sm leading-none">+</span> Add Sub-issue
                         </button>
                       </div>
+                      {(children ?? []).length > 0 ? (
+                        <div className="border border-border rounded divide-y divide-border">
+                          {(children ?? []).map((child) => (
+                            <div
+                              key={child.id}
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-bg-soft/40 transition-colors"
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                  child.closedAt ? 'bg-priority-low' : 'bg-accent'
+                                }`}
+                              />
+                              <span
+                                className={`text-sm flex-1 truncate ${child.closedAt ? 'line-through text-text-muted' : ''}`}
+                              >
+                                {child.title}
+                              </span>
+                              <span className="mono text-[10px] text-text-dim flex-shrink-0 bg-bg-soft px-1.5 py-0.5 rounded">
+                                {child.storyPoints} pt
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="border border-dashed border-border rounded p-6 text-center">
+                          <p className="mono text-xs text-text-dim">No sub-issues yet.</p>
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Sub-issues */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="mono text-xs uppercase tracking-widest text-text-dim">
-                        sub-issues {children && children.length > 0 && `(${children.length})`}
-                      </label>
+                    {/* Activity / Comments Tabs */}
+                    <div className="pt-6">
+                      <nav className="flex gap-6 border-b border-border mb-6">
+                        {(['comments', 'activity'] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setTab(t)}
+                            className={`mono text-xs uppercase tracking-widest pb-3 border-b-2 transition-colors ${
+                              tab === t
+                                ? 'border-accent text-accent'
+                                : 'border-transparent text-text-dim hover:text-text'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </nav>
+
+                      {tab === 'comments' && (
+                        <IssueComments
+                          issueId={issue.id}
+                          currentUserId={currentUserId}
+                          onChange={() => setActivityKey((k) => k + 1)}
+                        />
+                      )}
+
+                      {tab === 'activity' && (
+                        <IssueActivity issueId={issue.id} refreshKey={activityKey} />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column - Metadata */}
+                  <div className="w-full md:w-72 flex-shrink-0 space-y-6">
+                    {/* Status Box */}
+                    <div className="p-4 border border-border rounded bg-bg-soft/20 space-y-5">
+                      <Field label="Status">
+                        <button
+                          className={`btn w-full justify-center py-2 ${issue.closedAt ? 'border-priority-low bg-bg-soft/50 text-text-dim' : 'border-accent text-accent bg-accent/5 hover:bg-accent/10'}`}
+                          onClick={() => patch({ closed: !issue.closedAt })}
+                        >
+                          {issue.closedAt ? '◉ Closed — Reopen' : '○ Open — Close Issue'}
+                        </button>
+                      </Field>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Priority">
+                          <select
+                            className="input mono text-sm w-full bg-bg py-1.5"
+                            value={issue.priority}
+                            onChange={(e) => patch({ priority: e.target.value as Priority })}
+                          >
+                            {priorities.map((p) => (
+                              <option key={p} value={p}>
+                                {p}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Points">
+                          <input
+                            className="input mono text-sm w-full bg-bg py-1.5"
+                            type="number"
+                            min={0}
+                            value={issue.storyPoints}
+                            onChange={(e) =>
+                              setIssue({ ...issue, storyPoints: parseInt(e.target.value || '0') })
+                            }
+                            onBlur={(e) => patch({ storyPoints: parseInt(e.target.value || '0') })}
+                          />
+                        </Field>
+                      </div>
+                    </div>
+
+                    {/* Details Box */}
+                    <div className="space-y-5">
+                      {/* Parent Issue */}
+                      {issue.parentId && (
+                        <Field label="Parent">
+                          <div className="flex items-center justify-between border border-border rounded px-3 py-2 bg-bg-soft/20 hover:bg-bg-soft/40 transition-colors">
+                            <span className="text-sm truncate">
+                              {parentIssue ? parentIssue.title : 'Loading...'}
+                            </span>
+                            <button
+                              className="mono text-[10px] text-text-dim hover:text-priority-critical ml-2 flex-shrink-0 px-2 py-1 rounded"
+                              title="Detach from parent"
+                              onClick={() => patch({ parentId: EMPTY_GUID })}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </Field>
+                      )}
+
+                      <Field label="Epic">
+                        <select
+                          className="input mono text-sm w-full bg-bg-soft/20 py-2"
+                          value={issue.epicId ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            patch({ epicId: v === '' ? EMPTY_GUID : v });
+                          }}
+                        >
+                          <option value="">— None —</option>
+                          {(epics ?? []).map((ep) => (
+                            <option key={ep.id} value={ep.id}>
+                              {ep.title}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+
+                      <Field label="Sprint">
+                        <select
+                          className="input mono text-sm w-full bg-bg-soft/20 py-2"
+                          value={issue.sprintId ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            patch({ sprintId: v === '' ? EMPTY_GUID : v });
+                          }}
+                        >
+                          <option value="">— None —</option>
+                          {(sprints ?? []).map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                              {s.status !== 'planned' ? ` · ${s.status}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                      <IssueLabels
+                        issueId={issue.id}
+                        projectId={issue.projectId}
+                        onChange={() => setActivityKey((k) => k + 1)}
+                      />
+                    </div>
+
+                    <div className="pt-6 mt-6 border-t border-border">
                       <button
-                        className="mono text-[10px] uppercase tracking-widest text-accent hover:underline"
-                        onClick={() => setAddingChild(true)}
+                        onClick={remove}
+                        className="btn-ghost text-priority-critical w-full flex justify-center py-2 hover:bg-priority-critical/10 transition-colors"
                       >
-                        + add
+                        Delete Issue
                       </button>
                     </div>
-                    {(children ?? []).length > 0 ? (
-                      <div className="border border-border divide-y divide-border">
-                        {(children ?? []).map((child) => (
-                          <div key={child.id} className="flex items-center gap-2 px-3 py-1.5">
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                child.closedAt ? 'bg-priority-low' : 'bg-accent'
-                              }`}
-                            />
-                            <span
-                              className={`text-sm flex-1 truncate ${child.closedAt ? 'line-through text-text-muted' : ''}`}
-                            >
-                              {child.title}
-                            </span>
-                            <span className="mono text-[10px] text-text-dim flex-shrink-0">
-                              {child.storyPoints}pt
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mono text-xs text-text-dim">no sub-issues yet.</p>
-                    )}
-                  </div>
-
-                  <Field label="status">
-                    <button
-                      className={`btn ${issue.closedAt ? 'border-priority-low' : 'border-accent text-accent'}`}
-                      onClick={() => patch({ closed: !issue.closedAt })}
-                    >
-                      {issue.closedAt ? '◉ closed — reopen' : '○ open — close'}
-                    </button>
-                  </Field>
-
-                  <IssueLabels
-                    issueId={issue.id}
-                    projectId={issue.projectId}
-                    onChange={() => setActivityKey((k) => k + 1)}
-                  />
-
-                  <div className="pt-4 border-t border-border flex justify-between items-center">
-                    <span className="mono text-xs text-text-dim">
-                      {saving ? 'saving…' : 'auto-save on blur'}
-                    </span>
-                    <button onClick={remove} className="btn-ghost text-priority-critical">
-                      delete issue
-                    </button>
                   </div>
                 </div>
-              )}
+              </div>
+            </>
+          )}
 
-              {/* Create sub-issue modal */}
-              {addingChild && issue && (
-                <CreateIssueModal
-                  projectId={issue.projectId}
-                  parentId={issue.id}
-                  onClose={() => setAddingChild(false)}
-                  onCreated={() => {
-                    setAddingChild(false);
-                    qc.invalidateQueries({ queryKey: childrenKey });
-                    onChange();
-                  }}
-                />
-              )}
-
-              {tab === 'comments' && (
-                <IssueComments
-                  issueId={issue.id}
-                  currentUserId={currentUserId}
-                  onChange={() => setActivityKey((k) => k + 1)}
-                />
-              )}
-
-              {tab === 'activity' && <IssueActivity issueId={issue.id} refreshKey={activityKey} />}
-            </div>
+          {/* Create sub-issue modal */}
+          {addingChild && issue && (
+            <CreateIssueModal
+              projectId={issue.projectId}
+              parentId={issue.id}
+              onClose={() => setAddingChild(false)}
+              onCreated={() => {
+                setAddingChild(false);
+                qc.invalidateQueries({ queryKey: childrenKey });
+                onChange();
+              }}
+            />
           )}
         </motion.div>
       </motion.div>
@@ -407,7 +443,7 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mono text-xs uppercase tracking-widest text-text-dim mb-1.5 block">
+      <label className="mono text-xs uppercase tracking-widest text-text-dim mb-2 block">
         {label}
       </label>
       {children}
