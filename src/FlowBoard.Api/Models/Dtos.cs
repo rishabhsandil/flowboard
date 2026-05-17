@@ -63,8 +63,8 @@ public record UpdateMemberRoleRequest(
 );
 
 // ---------- Columns ----------
-public record CreateColumnRequest([Required, StringLength(50)] string Name);
-public record RenameColumnRequest([Required, StringLength(50)] string Name);
+public record CreateColumnRequest([Required, StringLength(50)] string Name, bool IsDone = false);
+public record UpdateColumnRequest([Required, StringLength(50)] string Name, bool IsDone);
 public record ReorderColumnsRequest(Guid[] Ids, int[] Positions);
 
 // ---------- Issues ----------

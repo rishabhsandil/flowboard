@@ -50,6 +50,7 @@ export interface BoardColumn {
   id: string;
   name: string;
   position: number;
+  isDone: boolean;
   issues: BoardIssue[];
 }
 

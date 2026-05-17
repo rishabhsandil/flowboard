@@ -9,7 +9,7 @@ import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { useEscapeKey } from '../lib/useEscapeKey';
 import { confirmDialog } from '../lib/confirmDialog';
-import type { EpicWithProgress, Issue, Priority, Sprint } from '../types';
+import type { BoardColumn, EpicWithProgress, Issue, Priority, Sprint } from '../types';
 import type { Paged } from '../types/api';
 import { IssueComments } from './IssueComments';
 import { IssueActivity } from './IssueActivity';
@@ -76,6 +76,13 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
     queryKey: ['sprints', issue?.projectId],
     queryFn: async () =>
       (await api.get<Paged<Sprint>>(`/projects/${issue!.projectId}/sprints`)).data.items,
+    enabled: !!issue?.projectId,
+  });
+
+  const { data: board } = useQuery({
+    queryKey: ['board', issue?.projectId],
+    queryFn: async () =>
+      (await api.get<{ columns: BoardColumn[] }>(`/projects/${issue!.projectId}/board`)).data,
     enabled: !!issue?.projectId,
   });
 
@@ -335,12 +342,28 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
                     {/* Status Box */}
                     <div className="p-4 border border-border rounded bg-bg-soft/20 space-y-5">
                       <Field label="Status">
-                        <button
-                          className={`btn w-full justify-center py-2 ${issue.closedAt ? 'border-priority-low bg-bg-soft/50 text-text-dim' : 'border-accent text-accent bg-accent/5 hover:bg-accent/10'}`}
-                          onClick={() => patch({ closed: !issue.closedAt })}
+                        <select
+                          className={clsx(
+                            'input mono text-sm w-full bg-bg py-2 appearance-none cursor-pointer border-accent/30 focus:border-accent',
+                            issue.closedAt && 'text-text-dim border-border',
+                          )}
+                          value={issue.columnId ?? ''}
+                          onChange={(e) => patch({ columnId: e.target.value })}
                         >
-                          {issue.closedAt ? '◉ Closed — Reopen' : '○ Open — Close Issue'}
-                        </button>
+                          {(board?.columns ?? []).map((col) => (
+                            <option key={col.id} value={col.id}>
+                              {col.name} {col.isDone ? ' (Closed)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {issue.closedAt && (
+                          <div className="mt-2 flex items-center gap-2 px-2 py-1 bg-priority-low/10 rounded border border-priority-low/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-priority-low" />
+                            <span className="mono text-[10px] text-priority-low uppercase tracking-tighter font-bold">
+                              Issue Closed
+                            </span>
+                          </div>
+                        )}
                       </Field>
 
                       <div className="grid grid-cols-2 gap-4">

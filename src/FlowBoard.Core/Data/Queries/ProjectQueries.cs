@@ -58,11 +58,11 @@ public static class ProjectQueries
         INSERT INTO boards (project_id) VALUES (@ProjectId) RETURNING id;";
 
     public const string InsertDefaultColumns = @"
-        INSERT INTO columns (board_id, name, position) VALUES
-          (@BoardId, 'Backlog',     0),
-          (@BoardId, 'In Progress', 1),
-          (@BoardId, 'In Review',   2),
-          (@BoardId, 'Done',        3);";
+        INSERT INTO columns (board_id, name, position, is_done) VALUES
+          (@BoardId, 'Backlog',     0, FALSE),
+          (@BoardId, 'In Progress', 1, FALSE),
+          (@BoardId, 'In Review',   2, FALSE),
+          (@BoardId, 'Done',        3, TRUE);";
 
     public const string Update = @"
         UPDATE projects SET
@@ -89,20 +89,21 @@ public static class ProjectQueries
 
     // Columns
     public const string ListColumns = @"
-        SELECT id, board_id, name, position, created_at
+        SELECT id, board_id, name, position, is_done, created_at
         FROM columns WHERE board_id = @BoardId ORDER BY position;";
 
     public const string InsertColumn = @"
-        INSERT INTO columns (board_id, name, position)
+        INSERT INTO columns (board_id, name, position, is_done)
         VALUES (
           @BoardId, @Name,
-          COALESCE((SELECT MAX(position) + 1 FROM columns WHERE board_id = @BoardId), 0)
+          COALESCE((SELECT MAX(position) + 1 FROM columns WHERE board_id = @BoardId), 0),
+          @IsDone
         )
-        RETURNING id, board_id, name, position, created_at;";
+        RETURNING id, board_id, name, position, is_done, created_at;";
 
     public const string RenameColumn = @"
-        UPDATE columns SET name = @Name WHERE id = @Id
-        RETURNING id, board_id, name, position, created_at;";
+        UPDATE columns SET name = @Name, is_done = @IsDone WHERE id = @Id
+        RETURNING id, board_id, name, position, is_done, created_at;";
 
     public const string DeleteColumn = @"DELETE FROM columns WHERE id = @Id;";
 
@@ -161,3 +162,4 @@ public static class ProjectQueries
         SELECT role FROM project_members
         WHERE project_id = @ProjectId AND user_id = @UserId;";
 }
+

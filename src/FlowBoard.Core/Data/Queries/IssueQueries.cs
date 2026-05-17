@@ -11,6 +11,7 @@ public static class IssueQueries
           c.id   AS column_id,
           c.name AS column_name,
           c.position AS column_position,
+          c.is_done AS column_is_done,
           COALESCE(
             json_agg(
               json_build_object(
@@ -42,7 +43,7 @@ public static class IssueQueries
           WHERE il.issue_id = i.id
         ) lb ON TRUE
         WHERE c.board_id = @BoardId
-        GROUP BY c.id, c.name, c.position
+        GROUP BY c.id, c.name, c.position, c.is_done
         ORDER BY c.position;";
 
     public const string GetById = @"

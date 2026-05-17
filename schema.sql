@@ -128,6 +128,28 @@ CREATE TRIGGER trg_issues_updated_at
 BEFORE UPDATE ON issues
 FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
+-- Automatically close/reopen issues when moved to/from a "Done" column
+CREATE OR REPLACE FUNCTION sync_issue_closed_at() RETURNS trigger AS $$
+DECLARE
+  v_is_done BOOLEAN;
+BEGIN
+  IF (NEW.column_id IS DISTINCT FROM OLD.column_id) THEN
+    SELECT is_done INTO v_is_done FROM columns WHERE id = NEW.column_id;
+    IF v_is_done THEN
+      NEW.closed_at = COALESCE(NEW.closed_at, NOW());
+    ELSE
+      NEW.closed_at = NULL;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_issue_closed_at ON issues;
+CREATE TRIGGER trg_sync_issue_closed_at
+BEFORE UPDATE ON issues
+FOR EACH ROW EXECUTE FUNCTION sync_issue_closed_at();
+
 -- ---------- REFRESH TOKENS ----------
 -- Server-side state for JWT refresh tokens. We still issue signed JWTs, but
 -- the `jti` claim is also a row here. Revoke = set `revoked_at`. Rotation =

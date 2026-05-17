@@ -42,6 +42,7 @@ public class BoardsController : ControllerBase
             id = r.ColumnId,
             name = r.ColumnName,
             position = r.ColumnPosition,
+            isDone = r.ColumnIsDone,
             issues = JsonDocument.Parse(r.IssuesJson).RootElement.Clone()
         });
 
@@ -58,17 +59,17 @@ public class BoardsController : ControllerBase
         if (boardId is null) return NotFound();
 
         var col = await c.QuerySingleAsync<BoardColumn>(
-            ProjectQueries.InsertColumn, new { BoardId = boardId.Value, req.Name });
+            ProjectQueries.InsertColumn, new { BoardId = boardId.Value, req.Name, req.IsDone });
         return Created($"/api/columns/{col.Id}", new { column = col });
     }
 
     [HttpPatch("columns/{id:guid}")]
-    public async Task<IActionResult> Rename(Guid id, RenameColumnRequest req)
+    public async Task<IActionResult> Update(Guid id, UpdateColumnRequest req)
     {
         if (!await AuthorizeColumn(id)) return Forbid();
         using var c = _db.Create();
         var col = await c.QuerySingleAsync<BoardColumn>(
-            ProjectQueries.RenameColumn, new { Id = id, req.Name });
+            ProjectQueries.RenameColumn, new { Id = id, req.Name, req.IsDone });
         return Ok(new { column = col });
     }
 

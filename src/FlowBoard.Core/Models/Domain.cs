@@ -38,6 +38,7 @@ public record BoardColumn(
     Guid BoardId,
     string Name,
     int Position,
+    bool IsDone,
     DateTime CreatedAt
 );
 
@@ -121,6 +122,7 @@ public record BoardColumnRow(
     Guid ColumnId,
     string ColumnName,
     int ColumnPosition,
+    bool ColumnIsDone,
     string IssuesJson
 );
 
