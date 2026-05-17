@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using FlowBoard.Api.Activity;
 using FlowBoard.Api.Auth;
@@ -38,6 +39,12 @@ public class IssuesController : ControllerBase
             columnId = await c.ExecuteScalarAsync<Guid?>(
                 ProjectQueries.GetFirstColumnId,
                 new { BoardId = boardId.Value });
+        }
+
+        if (req.ParentId.HasValue && req.ParentId != Guid.Empty)
+        {
+            var error = await ValidateParent(c, projectId, req.ParentId.Value, null);
+            if (error != null) return BadRequest(new { error });
         }
 
         var issue = await c.QuerySingleAsync<Issue>(IssueQueries.Insert, new
@@ -86,6 +93,7 @@ public class IssuesController : ControllerBase
         [FromQuery] Guid? sprintId,
         [FromQuery] Guid? assigneeId,
         [FromQuery] Guid? labelId,
+        [FromQuery] Guid? parentId,
         [FromQuery] string? search,
         [FromQuery] int skip = 0,
         [FromQuery] int take = 50)
@@ -111,6 +119,7 @@ public class IssuesController : ControllerBase
             SprintId   = sprintId,
             AssigneeId = assigneeId,
             LabelId    = labelId,
+            ParentId   = parentId,
             Search     = trimmedSearch,
             Skip       = skip,
             Take       = take,
@@ -146,6 +155,12 @@ public class IssuesController : ControllerBase
         // Snapshot before so we can diff and log only changed fields.
         var before = await c.QuerySingleOrDefaultAsync<Issue>(IssueQueries.GetById, new { Id = id });
         if (before is null) return NotFound();
+
+        if (req.ParentId.HasValue)
+        {
+            var error = await ValidateParent(c, before.ProjectId, req.ParentId.Value, id);
+            if (error != null) return BadRequest(new { error });
+        }
 
         var issue = await c.QuerySingleAsync<Issue>(IssueQueries.Update, new
         {
@@ -248,5 +263,30 @@ public class IssuesController : ControllerBase
         var projectId = await c.ExecuteScalarAsync<Guid?>(
             ProjectQueries.IssueProjectId, new { IssueId = issueId });
         return projectId.HasValue && await _authz.IsMemberAsync(projectId.Value, User.GetUserId());
+    }
+
+    private async Task<string?> ValidateParent(IDbConnection c, Guid projectId, Guid parentId, Guid? issueId)
+    {
+        if (parentId == Guid.Empty) return null;
+        if (issueId.HasValue && parentId == issueId.Value) return "self_parenting";
+
+        var current = parentId;
+        var visited = new HashSet<Guid>();
+        if (issueId.HasValue) visited.Add(issueId.Value);
+
+        while (true)
+        {
+            var parent = await c.QuerySingleOrDefaultAsync<dynamic>(
+                "SELECT project_id, parent_id FROM issues WHERE id = @Id", new { Id = current });
+
+            if (parent == null) return "parent_not_found";
+            if ((Guid)parent.project_id != projectId) return "cross_project_parent";
+            if (parent.parent_id == null) break;
+
+            current = (Guid)parent.parent_id;
+            if (visited.Contains(current)) return "circular_dependency";
+            visited.Add(current);
+        }
+        return null;
     }
 }

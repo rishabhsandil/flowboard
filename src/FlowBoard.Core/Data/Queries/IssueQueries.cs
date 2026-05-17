@@ -23,6 +23,8 @@ public static class IssueQueries
                 'assignee_id',  i.assignee_id,
                 'epic_id',      i.epic_id,
                 'sprint_id',    i.sprint_id,
+                'parent_id',    i.parent_id,
+                'child_count',  (SELECT COUNT(*) FROM issues WHERE parent_id = i.id),
                 'epic_color',   e.color,
                 'epic_title',   e.title,
                 'labels',       COALESCE(lb.labels, '[]'::json)
@@ -139,7 +141,7 @@ public static class IssueQueries
     public const string ListByProject = @"
         SELECT i.id, i.project_id, i.column_id, i.epic_id, i.sprint_id, i.assignee_id,
                i.title, i.description, i.priority, i.story_points, i.position,
-               i.created_at, i.updated_at, i.closed_at,
+               i.created_at, i.updated_at, i.closed_at, i.parent_id,
                c.name AS column_name,
                e.title AS epic_title, e.color AS epic_color,
                s.name AS sprint_name,
@@ -176,6 +178,9 @@ public static class IssueQueries
           AND (@LabelId  IS NULL
                OR EXISTS (SELECT 1 FROM issue_labels il2
                           WHERE il2.issue_id = i.id AND il2.label_id = @LabelId))
+          AND (@ParentId IS NULL
+               OR (@ParentId = '00000000-0000-0000-0000-000000000000' AND i.parent_id IS NULL)
+               OR i.parent_id = @ParentId)
           AND (@Search   IS NULL OR i.title ILIKE '%' || @Search || '%')
         ORDER BY i.closed_at IS NULL DESC,
                  CASE i.priority
@@ -208,6 +213,9 @@ public static class IssueQueries
           AND (@LabelId  IS NULL
                OR EXISTS (SELECT 1 FROM issue_labels il2
                           WHERE il2.issue_id = i.id AND il2.label_id = @LabelId))
+          AND (@ParentId IS NULL
+               OR (@ParentId = '00000000-0000-0000-0000-000000000000' AND i.parent_id IS NULL)
+               OR i.parent_id = @ParentId)
           AND (@Search   IS NULL OR i.title ILIKE '%' || @Search || '%');";
 
     /// <summary>

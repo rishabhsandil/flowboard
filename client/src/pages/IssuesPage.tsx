@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { Layers } from 'lucide-react';
 import { api } from '../lib/api';
 import { toast } from '../lib/toast';
 import { confirmDialog } from '../lib/confirmDialog';
@@ -36,6 +37,7 @@ interface Filters {
   assigneeId: string;
   labelId: string;
   search: string;
+  showSubIssues: boolean;
 }
 
 const DEFAULT_FILTERS: Filters = {
@@ -46,6 +48,7 @@ const DEFAULT_FILTERS: Filters = {
   assigneeId: '',
   labelId: '',
   search: '',
+  showSubIssues: false,
 };
 
 interface IssuesResponse {
@@ -120,6 +123,10 @@ export default function IssuesPage() {
     if (filters.assigneeId) p.assigneeId = filters.assigneeId;
     if (filters.labelId) p.labelId = filters.labelId;
     if (filters.search.trim()) p.search = filters.search.trim();
+
+    // If not showing sub-issues, filter for top-level only (parentId = NONE_GUID)
+    if (!filters.showSubIssues) p.parentId = NONE_GUID;
+
     return p;
   }, [filters, page]);
 
@@ -321,6 +328,17 @@ export default function IssuesPage() {
             ...(labels ?? []).map((l) => [l.id, l.name] as [string, string]),
           ]}
         />
+        <div className="flex items-center gap-2 px-2">
+          <input
+            type="checkbox"
+            id="showSubIssues"
+            checked={filters.showSubIssues}
+            onChange={(e) => update('showSubIssues', e.target.checked)}
+          />
+          <label htmlFor="showSubIssues" className="mono text-[10px] uppercase cursor-pointer">
+            show sub-issues
+          </label>
+        </div>
         <button
           className="btn-ghost text-xs mono"
           onClick={() => {
@@ -585,6 +603,7 @@ function IssueRow({
       </td>
       <td className="px-3 py-2">
         <div className={`flex items-center gap-2 ${closed ? 'text-text-dim line-through' : ''}`}>
+          {row.parentId && <Layers size={10} className="text-accent shrink-0" />}
           <span className="truncate">{row.title}</span>
           {labels.length > 0 && (
             <span className="flex gap-1 shrink-0">

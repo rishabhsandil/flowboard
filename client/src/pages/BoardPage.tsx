@@ -68,6 +68,9 @@ export default function BoardPage() {
     return columns.map((c) => ({
       ...c,
       issues: c.issues.filter((i) => {
+        // Hide sub-issues from the main board
+        if (i.parent_id) return false;
+
         // Epic filter
         if (epicFilter === 'none' && i.epic_id) return false;
         if (epicFilter !== 'all' && epicFilter !== 'none' && i.epic_id !== epicFilter) return false;

@@ -1,5 +1,6 @@
 ﻿import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Layers } from 'lucide-react';
 import type { BoardIssue } from '../types';
 import { priorityBorder, priorityLabel } from '../lib/priority';
 import { EpicPill } from './EpicPill';
@@ -67,6 +68,15 @@ export function IssueCard({ issue, onClick, dragging }: Props) {
       <div className="flex items-center justify-between pt-2 border-t border-border/40 mono text-[9px] uppercase tracking-widest">
         <span className="text-text-dim/80 font-semibold">{priorityLabel[issue.priority]}</span>
         <div className="flex items-center gap-2">
+          {issue.child_count > 0 && (
+            <span
+              className="flex items-center gap-1 px-1.5 py-0.5 bg-bg-soft text-accent rounded-sm border border-accent/20"
+              title={`${issue.child_count} sub-issues`}
+            >
+              <Layers size={10} />
+              {issue.child_count}
+            </span>
+          )}
           {issue.story_points > 0 && (
             <span className="px-1.5 py-0.5 bg-bg-soft text-text-muted rounded-sm border border-border/50">
               {issue.story_points} pt

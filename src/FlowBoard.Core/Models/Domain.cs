@@ -146,6 +146,7 @@ public record IssueListRow(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? ClosedAt,
+    Guid? ParentId,
     string? ColumnName,
     string? EpicTitle,
     string? EpicColor,

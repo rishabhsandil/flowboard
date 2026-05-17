@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS columns (
   board_id UUID REFERENCES boards(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   position INTEGER NOT NULL,
+  is_done BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS issues (
   priority TEXT DEFAULT 'medium' CHECK (priority IN ('low','medium','high','critical')),
   story_points INTEGER DEFAULT 0 CHECK (story_points >= 0),
   position INTEGER NOT NULL DEFAULT 0,
+  parent_id UUID REFERENCES issues(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   closed_at TIMESTAMPTZ
@@ -95,12 +97,7 @@ CREATE INDEX IF NOT EXISTS idx_issues_sprint_id      ON issues(sprint_id);
 CREATE INDEX IF NOT EXISTS idx_issues_epic_id        ON issues(epic_id);
 CREATE INDEX IF NOT EXISTS idx_issues_assignee_id    ON issues(assignee_id);  -- "issues assigned to me"
 CREATE INDEX IF NOT EXISTS idx_issues_closed_at      ON issues(closed_at);
-
--- Sub-issues: self-referential FK (idempotent — safe to re-run)
-DO $$ BEGIN
-  ALTER TABLE issues ADD COLUMN parent_id UUID REFERENCES issues(id) ON DELETE SET NULL;
-EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-CREATE INDEX IF NOT EXISTS idx_issues_parent_id ON issues(parent_id);
+CREATE INDEX IF NOT EXISTS idx_issues_parent_id      ON issues(parent_id);
 CREATE INDEX IF NOT EXISTS idx_columns_board_id      ON columns(board_id);
 CREATE INDEX IF NOT EXISTS idx_boards_project_id     ON boards(project_id);
 CREATE INDEX IF NOT EXISTS idx_sprints_project_id    ON sprints(project_id);
@@ -149,6 +146,62 @@ DROP TRIGGER IF EXISTS trg_sync_issue_closed_at ON issues;
 CREATE TRIGGER trg_sync_issue_closed_at
 BEFORE UPDATE ON issues
 FOR EACH ROW EXECUTE FUNCTION sync_issue_closed_at();
+
+-- Automatically rollup story points from children to parents.
+-- Note: This is recursive; updating a grandchild updates the child, which updates the parent.
+CREATE OR REPLACE FUNCTION rollup_issue_points() RETURNS trigger AS $$
+DECLARE
+  v_parent_id UUID;
+BEGIN
+  -- Which parent(s) need updating?
+  IF (TG_OP = 'DELETE') THEN
+    v_parent_id = OLD.parent_id;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    -- If parent changed, we might need to update TWO parents (old and new).
+    -- But for simplicity and to avoid multiple updates, we handle the NEW one
+    -- and then the OLD one if it's different.
+    IF (NEW.parent_id IS DISTINCT FROM OLD.parent_id OR NEW.story_points IS DISTINCT FROM OLD.story_points) THEN
+      IF (OLD.parent_id IS NOT NULL) THEN
+        UPDATE issues SET story_points = (SELECT COALESCE(SUM(story_points), 0) FROM issues WHERE parent_id = OLD.parent_id)
+        WHERE id = OLD.parent_id;
+      END IF;
+      v_parent_id = NEW.parent_id;
+    END IF;
+  ELSE -- INSERT
+    v_parent_id = NEW.parent_id;
+  END IF;
+
+  IF (v_parent_id IS NOT NULL) THEN
+    UPDATE issues SET story_points = (SELECT COALESCE(SUM(story_points), 0) FROM issues WHERE parent_id = v_parent_id)
+    WHERE id = v_parent_id;
+  END IF;
+
+  IF (TG_OP = 'DELETE') THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_issues_rollup_points ON issues;
+CREATE TRIGGER trg_issues_rollup_points
+AFTER INSERT OR UPDATE OR DELETE ON issues
+FOR EACH ROW EXECUTE FUNCTION rollup_issue_points();
+
+-- Sync parent status to children (Close parent -> Close children).
+CREATE OR REPLACE FUNCTION sync_parent_to_children_status() RETURNS trigger AS $$
+BEGIN
+  IF (NEW.closed_at IS DISTINCT FROM OLD.closed_at) THEN
+    UPDATE issues
+    SET closed_at = NEW.closed_at
+    WHERE parent_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_parent_to_children_status ON issues;
+CREATE TRIGGER trg_sync_parent_to_children_status
+AFTER UPDATE ON issues
+FOR EACH ROW EXECUTE FUNCTION sync_parent_to_children_status();
 
 -- ---------- REFRESH TOKENS ----------
 -- Server-side state for JWT refresh tokens. We still issue signed JWTs, but

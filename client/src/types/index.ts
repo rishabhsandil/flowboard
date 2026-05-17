@@ -28,6 +28,8 @@ export interface BoardIssue {
   assignee_id: string | null;
   epic_id: string | null;
   sprint_id: string | null;
+  parent_id: string | null;
+  child_count: number;
   epic_color: string | null;
   epic_title: string | null;
   labels: { id: string; name: string; color: string }[];
@@ -177,6 +179,7 @@ export interface IssueListRow {
   sprintName: string | null;
   assigneeName: string | null;
   labelsJson: string;
+  parentId: string | null;
 }
 
 export interface ProjectMember {
