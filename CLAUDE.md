@@ -149,12 +149,16 @@ The suite lives in `client/tests/`. Tests hit the running local stack
 (`http://localhost:8080` API, `http://localhost:5173` client). If the API is
 not running, start it first (see **Build / run** above). All tests must pass.
 
-### 4 — Docs
-After every feature, update as needed (only the sections that actually changed):
-- `README.md` — user-facing features, new routes, env vars
-- `docs/FEATURES.md` — detailed feature descriptions
-- `docs/queries.md` — any new or changed SQL
-- `CLAUDE.md` — any new conventions or gotchas discovered
+### 4 — README
+Update `README.md` to reflect any user-visible changes: new pages/routes,
+new features, changed env vars. The Features table and Roadmap must stay
+accurate. Only touch sections that actually changed.
+
+### 5 — Other docs
+Update as needed (only what actually changed):
+- `docs/FEATURES.md` — detailed feature checklist (mark items `[x]`)
+- `docs/queries.md` — any new or changed SQL with annotations
+- `CLAUDE.md` — new conventions or Dapper gotchas discovered
 
 ## Don't
 
@@ -162,3 +166,4 @@ After every feature, update as needed (only the sections that actually changed):
 - Don't add `DateOnly` to result records — it will compile but crash at runtime on materialization.
 - Don't commit `appsettings.Development.json` (gitignored).
 - Don't use `--no-verify` or amend pushed commits.
+- **Never commit or push.** Stage changes at most — the user always makes the commit.

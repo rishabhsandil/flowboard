@@ -154,6 +154,7 @@ IMPORTANT REMINDERS
 - Read the issue description carefully before coding — it is your spec
 - If unsure about scope, implement the minimal working version that satisfies the title/description
 - NEVER ask a question. NEVER wait for input. Make a decision and log it.
+- NEVER run git commit or git push — the user always commits themselves
 - If a test fails after 5 fix attempts, log the failure, leave the issue In Progress, and continue
 - If the API is unreachable and won't start, log it and exit cleanly
 "@
