@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, humanizeApiError } from '../lib/api';
+import { api } from '../lib/api';
 import { confirmDialog } from '../lib/confirmDialog';
-import { getApiError } from '../types/api';
+import { errorService } from '../lib/errorService';
 import type { Label, Project } from '../types';
 
 interface Ctx {
@@ -49,7 +49,7 @@ export default function LabelsPage() {
       setColor('#64748b');
       refetch();
     } catch (e) {
-      setError(humanizeApiError(getApiError(e)));
+      setError(errorService.getMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -125,7 +125,7 @@ function LabelRow({ label, onChange }: { label: Label; onChange: () => void }) {
       setEditing(false);
       onChange();
     } catch (e) {
-      setError(humanizeApiError(getApiError(e)));
+      setError(errorService.getMessage(e));
     }
   }
 

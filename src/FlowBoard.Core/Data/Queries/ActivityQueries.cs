@@ -45,9 +45,18 @@ public static class ActivityQueries
         FROM activities a
         LEFT JOIN users u ON u.id = a.actor_id
         WHERE a.project_id = @ProjectId
+          AND (@ActorId::uuid IS NULL OR a.actor_id = @ActorId)
+          AND (@Type::text IS NULL OR a.type = @Type)
+          AND (@StartDate::timestamp IS NULL OR a.created_at >= @StartDate)
+          AND (@EndDate::timestamp IS NULL OR a.created_at <= @EndDate)
         ORDER BY a.created_at DESC
         OFFSET @Skip LIMIT @Take;";
 
     public const string CountByProject = @"
-        SELECT COUNT(*) FROM activities WHERE project_id = @ProjectId;";
+        SELECT COUNT(*) FROM activities a
+        WHERE a.project_id = @ProjectId
+          AND (@ActorId::uuid IS NULL OR a.actor_id = @ActorId)
+          AND (@Type::text IS NULL OR a.type = @Type)
+          AND (@StartDate::timestamp IS NULL OR a.created_at >= @StartDate)
+          AND (@EndDate::timestamp IS NULL OR a.created_at <= @EndDate);";
 }

@@ -36,13 +36,19 @@ public class ActivitiesController : ControllerBase
     }
 
     [HttpGet("projects/{projectId:guid}/activity")]
-    public async Task<IActionResult> ForProject(Guid projectId, [FromQuery] PageRequest page)
+    public async Task<IActionResult> ForProject(
+        Guid projectId,
+        [FromQuery] Guid? actorId,
+        [FromQuery] string? type,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] PageRequest page)
     {
         if (!await _authz.IsMemberAsync(projectId, User.GetUserId())) return Forbid();
         using var c = _db.Create();
-        var args = new { ProjectId = projectId, page.Skip, page.Take };
+        var args = new { ProjectId = projectId, ActorId = actorId, Type = type, StartDate = startDate, EndDate = endDate, page.Skip, page.Take };
         var rows  = await c.QueryAsync<ActivityRow>(ActivityQueries.ListByProject, args);
-        var total = await c.ExecuteScalarAsync<int>(ActivityQueries.CountByProject, new { ProjectId = projectId });
+        var total = await c.ExecuteScalarAsync<int>(ActivityQueries.CountByProject, args);
         return Ok(new Paged<ActivityRow>(rows, total, page.Skip, page.Take));
     }
 }

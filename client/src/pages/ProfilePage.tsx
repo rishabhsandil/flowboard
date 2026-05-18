@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, humanizeApiError } from '../lib/api';
-import { getApiError } from '../types/api';
+import { api } from '../lib/api';
+import { errorService } from '../lib/errorService';
 import { useAuthStore } from '../lib/auth';
 import { toast } from '../lib/toast';
 import { useThemeStore } from '../lib/theme';
@@ -89,7 +89,7 @@ export default function ProfilePage() {
       setConfirmPassword('');
       toast.success('password changed — other devices have been signed out');
     },
-    onError: (e) => setPasswordError(humanizeApiError(getApiError(e) ?? 'internal_error')),
+    onError: (e) => setPasswordError(errorService.getMessage(e, 'internal_error')),
   });
 
   function submitProfile(e: FormEvent) {

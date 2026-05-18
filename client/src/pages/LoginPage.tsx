@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, humanizeApiError } from '../lib/api';
+import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
-import { getApiError } from '../types/api';
+import { errorService } from '../lib/errorService';
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -22,7 +22,7 @@ export default function LoginPage() {
       setSession(res.data.user, res.data.accessToken, res.data.refreshToken);
       nav('/dashboard');
     } catch (err) {
-      setError(humanizeApiError(getApiError(err, 'login_failed')));
+      setError(errorService.getMessage(err, 'login_failed'));
     } finally {
       setLoading(false);
     }

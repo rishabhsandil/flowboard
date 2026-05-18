@@ -7,7 +7,7 @@
 export interface ApiError {
   response?: {
     status?: number;
-    data?: { error?: string; message?: string };
+    data?: { error?: string; message?: string; stackTrace?: string };
   };
   message?: string;
 }
@@ -16,7 +16,15 @@ export interface ApiError {
 export function getApiError(err: unknown, fallback = 'unknown_error'): string {
   if (typeof err === 'object' && err !== null) {
     const e = err as ApiError;
-    return e.response?.data?.error ?? e.response?.data?.message ?? e.message ?? fallback;
+    const data = e.response?.data;
+    if (data) {
+      const msg = data.error ?? data.message ?? e.message ?? fallback;
+      if (data.stackTrace) {
+        return `${msg}\n\nStack Trace:\n${data.stackTrace}`;
+      }
+      return msg;
+    }
+    return e.message ?? fallback;
   }
   return fallback;
 }

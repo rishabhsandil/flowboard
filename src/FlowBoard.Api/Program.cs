@@ -162,7 +162,14 @@ app.UseExceptionHandler(errorApp =>
 
         ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
         ctx.Response.ContentType = "application/json";
-        await ctx.Response.WriteAsJsonAsync(new { error = "internal_error" });
+        
+        var errorMsg = feature?.Error?.Message ?? "internal_error";
+        var stackTrace = feature?.Error?.StackTrace;
+        
+        await ctx.Response.WriteAsJsonAsync(new { 
+            error = errorMsg,
+            stackTrace = stackTrace
+        });
     });
 });
 

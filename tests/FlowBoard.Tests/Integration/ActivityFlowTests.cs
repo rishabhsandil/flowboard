@@ -194,4 +194,34 @@ public sealed class ActivityFlowTests : IntegrationTestBase
         using var parsed = JsonDocument.Parse(raw!);
         Assert.Equal(JsonValueKind.Object, parsed.RootElement.ValueKind);
     }
+
+    [Fact]
+    public async Task ProjectActivityFeed_FiltersByActorTypeAndDate()
+    {
+        var owner = await RegisterUserAsync(name: "Filter Tester");
+        var (projectId, issueId) = await CreateProjectWithIssueAsync(owner);
+
+        // Add a comment to generate a comment_added event
+        await owner.Http.PostAsJsonAsync($"/api/issues/{issueId}/comments", new { body = "Test comment" });
+
+        // Query by actor
+        var feedByActor = await owner.Http.GetFromJsonAsync<JsonElement>($"/api/projects/{projectId}/activity?actorId={owner.UserId}");
+        Assert.NotEmpty(feedByActor.GetProperty("items").EnumerateArray());
+
+        // Query by type
+        var feedByType = await owner.Http.GetFromJsonAsync<JsonElement>($"/api/projects/{projectId}/activity?type=comment_added");
+        var itemsByType = feedByType.GetProperty("items").EnumerateArray().ToList();
+        Assert.Single(itemsByType);
+        Assert.Equal("comment_added", itemsByType[0].GetProperty("type").GetString());
+
+        // Query by dates (inclusive)
+        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var feedByDate = await owner.Http.GetFromJsonAsync<JsonElement>($"/api/projects/{projectId}/activity?startDate={today}&endDate={today}T23:59:59Z");
+        Assert.NotEmpty(feedByDate.GetProperty("items").EnumerateArray());
+
+        // Query by future date (should be empty)
+        var future = DateTime.UtcNow.AddDays(1).ToString("yyyy-MM-dd");
+        var emptyFeed = await owner.Http.GetFromJsonAsync<JsonElement>($"/api/projects/{projectId}/activity?startDate={future}");
+        Assert.Empty(emptyFeed.GetProperty("items").EnumerateArray());
+    }
 }

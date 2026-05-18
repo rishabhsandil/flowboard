@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, humanizeApiError } from '../lib/api';
+import { api } from '../lib/api';
 import { confirmDialog } from '../lib/confirmDialog';
 import { useAuthStore } from '../lib/auth';
 import { toast } from '../lib/toast';
-import { getApiError } from '../types/api';
+import { errorService } from '../lib/errorService';
 import type { Project, ProjectMember } from '../types';
 
 interface Ctx {
@@ -68,7 +68,7 @@ export default function MembersPage() {
       refresh();
       toast.success('member added');
     } catch (err) {
-      setInviteError(humanizeApiError(getApiError(err, 'request_failed')));
+      setInviteError(errorService.getMessage(err, 'request_failed'));
     } finally {
       setBusy(false);
     }
@@ -77,7 +77,7 @@ export default function MembersPage() {
   async function changeRole(m: ProjectMember, next: 'owner' | 'member') {
     if (m.role === next) return;
     if (next === 'member' && m.role === 'owner' && ownerCount <= 1) {
-      toast.error(humanizeApiError('last_owner'));
+      errorService.toastCode('last_owner');
       return;
     }
     try {
@@ -91,7 +91,7 @@ export default function MembersPage() {
   async function remove(m: ProjectMember) {
     const isSelf = m.id === currentUserId;
     if (!isSelf && m.role === 'owner' && ownerCount <= 1) {
-      toast.error(humanizeApiError('last_owner'));
+      errorService.toastCode('last_owner');
       return;
     }
     const ok = await confirmDialog({

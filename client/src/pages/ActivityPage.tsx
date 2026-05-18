@@ -11,14 +11,28 @@ interface Ctx {
 
 const PAGE_SIZE = 50;
 
+const KNOWN_TYPES = [
+  'issue_created',
+  'issue_updated',
+  'issue_closed',
+  'issue_reopened',
+  'issue_deleted',
+  'comment_added',
+  'comment_edited',
+  'comment_deleted',
+  'mention',
+  'label_added',
+  'label_removed',
+  'member_added',
+  'member_removed',
+  'member_left',
+  'member_role_changed',
+].sort();
+
 /**
  * Project-wide activity feed. Shows every logged event newest-first with
- * pagination + a type filter. Clicking a row that's tied to an issue
- * deep-links into the issues page with that issue's modal pre-opened
- * (handled by the existing `?issue=:id` query param).
- *
- * Types are derived from whatever the server has emitted so the dropdown
- * stays accurate as new event kinds get added without UI churn.
+ * pagination + type, actor, and date filters. Clicking a row that's tied to an issue
+ * deep-links into the issues page with that issue's modal pre-opened.
  */
 export default function ActivityPage() {
   const { project } = useOutletContext<Ctx>();
@@ -28,19 +42,39 @@ export default function ActivityPage() {
 
   const [skip, setSkip] = useState(0);
   const [typeFilter, setTypeFilter] = useState<string>('');
+  const [actorId, setActorId] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
-  // Reset to first page whenever the filter changes — otherwise paginating
-  // out of an empty filtered set leaves the user staring at "no activity".
+  // Reset to first page whenever any filter changes
   useEffect(() => {
     setSkip(0);
-  }, [typeFilter]);
+  }, [typeFilter, actorId, startDate, endDate]);
+
+  const { data: members } = useQuery({
+    queryKey: ['project-members', projectId],
+    queryFn: async () => {
+      const r = await api.get<{ items: { id: string; name: string }[] }>(
+        `/projects/${projectId}/members`,
+      );
+      return r.data.items;
+    },
+    enabled: !!projectId,
+  });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['project-activity', projectId, skip],
+    queryKey: ['project-activity', projectId, skip, typeFilter, actorId, startDate, endDate],
     queryFn: async () => {
-      const r = await api.get<Paged<ActivityRow>>(`/projects/${projectId}/activity`, {
-        params: { skip, take: PAGE_SIZE },
-      });
+      const params: Record<string, any> = { skip, take: PAGE_SIZE };
+      if (typeFilter) params.type = typeFilter;
+      if (actorId) params.actorId = actorId;
+      if (startDate) params.startDate = new Date(startDate).toISOString();
+      if (endDate) {
+        const ed = new Date(endDate);
+        ed.setHours(23, 59, 59, 999);
+        params.endDate = ed.toISOString();
+      }
+      const r = await api.get<Paged<ActivityRow>>(`/projects/${projectId}/activity`, { params });
       return r.data;
     },
     enabled: !!projectId,
@@ -49,21 +83,19 @@ export default function ActivityPage() {
   const items = useMemo(() => data?.items ?? [], [data]);
   const total = data?.total ?? 0;
 
-  const filtered = useMemo(
-    () => (typeFilter ? items.filter((r) => r.type === typeFilter) : items),
-    [items, typeFilter],
-  );
-
-  // Build the type dropdown from what's actually been logged in this page.
-  const knownTypes = useMemo(() => {
-    const set = new Set(items.map((r) => r.type));
-    return Array.from(set).sort();
-  }, [items]);
-
   function open(row: ActivityRow) {
     if (!row.issueId) return;
     nav(`/p/${slug}/issues?issue=${row.issueId}`);
   }
+
+  function clearFilters() {
+    setTypeFilter('');
+    setActorId('');
+    setStartDate('');
+    setEndDate('');
+  }
+
+  const hasFilters = typeFilter || actorId || startDate || endDate;
 
   return (
     <div className="flex flex-col h-full">
@@ -71,30 +103,61 @@ export default function ActivityPage() {
         <p className="mono text-xs uppercase tracking-widest text-text-dim">// activity</p>
         <h1 className="mono text-2xl mt-1">{project?.name ?? '…'}</h1>
         <p className="mono text-xs text-text-dim mt-1">
-          Newest events across the project. {total > 0 && `${total} total.`}
+          Newest events across the project. {total > 0 && `${total} matching events.`}
         </p>
 
-        <div className="mt-4 flex items-center gap-3">
-          <label className="mono text-xs text-text-dim uppercase tracking-widest">type</label>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <label className="mono text-xs text-text-dim uppercase tracking-widest">actor</label>
           <select
-            className="input mono text-xs w-56"
+            className="input mono text-xs w-48"
+            value={actorId}
+            onChange={(e) => setActorId(e.target.value)}
+          >
+            <option value="">all</option>
+            {members?.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+
+          <label className="mono text-xs text-text-dim uppercase tracking-widest ml-2">type</label>
+          <select
+            className="input mono text-xs w-48"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
             <option value="">all</option>
-            {knownTypes.map((t) => (
+            {KNOWN_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t.replace(/_/g, ' ')}
               </option>
             ))}
           </select>
-          {typeFilter && (
+
+          <label className="mono text-xs text-text-dim uppercase tracking-widest ml-2">from</label>
+          <input
+            type="date"
+            className="input mono text-xs w-32"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+
+          <label className="mono text-xs text-text-dim uppercase tracking-widest ml-2">to</label>
+          <input
+            type="date"
+            className="input mono text-xs w-32"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+
+          {hasFilters && (
             <button
               type="button"
-              className="mono text-xs text-text-dim hover:text-accent"
-              onClick={() => setTypeFilter('')}
+              className="mono text-xs text-text-dim hover:text-accent ml-2"
+              onClick={clearFilters}
             >
-              clear
+              clear filters
             </button>
           )}
         </div>
@@ -103,11 +166,11 @@ export default function ActivityPage() {
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {isLoading && items.length === 0 ? (
           <p className="mono text-xs text-text-dim">loading…</p>
-        ) : filtered.length === 0 ? (
+        ) : items.length === 0 ? (
           <p className="mono text-xs text-text-dim">no activity to show.</p>
         ) : (
           <ol className="space-y-3 border-l border-border pl-4 max-w-3xl">
-            {filtered.map((r) => (
+            {items.map((r) => (
               <li key={r.id} className="relative group">
                 <span className="absolute -left-[21px] top-1.5 w-2 h-2 rounded-full bg-accent" />
                 <button
@@ -135,10 +198,7 @@ export default function ActivityPage() {
         )}
       </div>
 
-      {/* Pagination — server returns {items,total,skip,take}. Disabled
-          when the filter narrows the visible set; paging there would
-          desync. Clearing the filter restores the buttons. */}
-      {!typeFilter && total > PAGE_SIZE && (
+      {total > PAGE_SIZE && (
         <footer className="px-8 py-3 border-t border-border flex items-center justify-between">
           <p className="mono text-xs text-text-dim">
             showing {skip + 1}–{Math.min(skip + PAGE_SIZE, total)} of {total}

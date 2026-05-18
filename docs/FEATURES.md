@@ -102,7 +102,7 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [ ] Audit log per project
 
 ### Reporting
-- [ ] Burndown chart (per active sprint)
+- [x] Burndown chart (per active sprint)
 - [ ] Cumulative flow diagram
 - [ ] Lead time / cycle time histograms
 - [ ] Per-assignee throughput
@@ -114,7 +114,7 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [x] Issue search across project (title `ILIKE`; full-text upgrade still open)
 - [ ] Saved board filters
 - [ ] Dark/light theme toggle (currently dark only)
-- [ ] Markdown rendering in issue descriptions
+- [x] Markdown rendering in issue descriptions
 - [ ] Drag-and-drop file/image attachments
 
 ### Integrations

@@ -1,7 +1,6 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { useAuthStore } from './auth';
-import { toast } from './toast';
-import { getApiError } from '../types/api';
+import { errorService } from './errorService';
 
 // Module augmentation: lets any axios call (including api.post/patch/delete)
 // accept a `silent: true` flag without TS errors. We read it in the response
@@ -11,26 +10,6 @@ declare module 'axios' {
   export interface AxiosRequestConfig {
     silent?: boolean;
   }
-}
-
-/**
- * Friendlier strings for known backend error codes. Anything not listed
- * falls back to the raw code, which is fine for diagnostics — devs see the
- * exact contract while users see something readable for the common cases.
- */
-const ERROR_MESSAGES: Record<string, string> = {
-  email_in_use: 'that email is already registered',
-  invalid_credentials: 'email or password is incorrect',
-  label_name_exists: 'a label with that name already exists',
-  label_project_mismatch: 'that label belongs to a different project',
-  user_not_found: 'no FlowBoard account found for that email',
-  member_not_found: 'that user is not a member of this project',
-  last_owner: "can't remove the last owner — promote someone else first",
-  internal_error: 'something went wrong on the server — please try again',
-};
-
-export function humanizeApiError(code: string): string {
-  return ERROR_MESSAGES[code] ?? code;
 }
 
 export const api = axios.create({
@@ -69,11 +48,10 @@ api.interceptors.response.use(
     // skip 401s (handled above), and skip when a request explicitly says
     // it'll render the error itself.
     if (!original?.silent && error.response && error.response.status !== 401) {
-      const code = getApiError(error, 'request_failed');
-      toast.error(humanizeApiError(code));
+      errorService.toast(error, 'request_failed');
     } else if (!original?.silent && !error.response) {
       // Network failure — no response object at all.
-      toast.error('network error — check your connection');
+      errorService.toastCode('network error — check your connection');
     }
     return Promise.reject(error);
   },
