@@ -190,3 +190,10 @@ export interface ProjectMember {
   createdAt: string;
   role: 'owner' | 'member';
 }
+
+// ---------- Cumulative Flow Diagram ----------
+export interface CfdPoint {
+  day: string;
+  columnName: string;
+  issueCount: number;
+}

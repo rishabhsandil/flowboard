@@ -95,7 +95,7 @@ builder.Services.AddCors(options =>
                 "https://flowboard.vercel.app",
                 "http://localhost:5173"
             )
-            .WithHeaders("Content-Type", "Authorization")
+            .WithHeaders("Content-Type", "Authorization", "X-Requested-With", "X-Correlation-Id")
             .WithMethods("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS");
     });
 });
@@ -137,6 +137,12 @@ var app = builder.Build();
 // global exception handler can attach the same id. Also adds the
 // `X-Correlation-Id` response header.
 app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Security headers on every response (X-Frame-Options, X-Content-Type-Options, etc.).
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+// CSRF defense-in-depth: require X-Requested-With: XMLHttpRequest on mutating requests.
+app.UseMiddleware<CsrfProtectionMiddleware>();
 
 // Structured request logging (method, path, status, ms, correlation id).
 app.UseSerilogRequestLogging(o =>

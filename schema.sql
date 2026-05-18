@@ -291,3 +291,19 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS idx_activities_issue_id   ON activities(issue_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activities_project_id ON activities(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activities_actor_id   ON activities(actor_id);
+
+-- ---------- BOARD SNAPSHOTS (Cumulative Flow Diagram) ----------
+-- One row per (project, column, calendar day). Upserted each time the CFD
+-- endpoint is called, so the chart accumulates data automatically over time.
+-- The unique constraint makes the INSERT ... ON CONFLICT idempotent.
+CREATE TABLE IF NOT EXISTS board_snapshots (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  column_id    UUID NOT NULL REFERENCES columns(id)  ON DELETE CASCADE,
+  column_name  TEXT NOT NULL,
+  issue_count  INT  NOT NULL DEFAULT 0,
+  snapped_at   DATE NOT NULL DEFAULT CURRENT_DATE,
+  UNIQUE (project_id, column_id, snapped_at)
+);
+CREATE INDEX IF NOT EXISTS idx_board_snapshots_project_date
+  ON board_snapshots(project_id, snapped_at DESC);

@@ -41,6 +41,23 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [x] Inline status changer (planned ↔ active ↔ completed)
 - [x] Issue list (already there)
 
+### Security
+- [x] **CSRF protection middleware** — requires `X-Requested-With: XMLHttpRequest` on all mutating requests; `/api/auth/` paths exempt
+- [x] **Security headers middleware** — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` on every response
+
+### Sprint planning view
+- [x] `/p/:slug/plan` — backlog (left) ↔ sprint (right) drag-and-drop assignment
+- [x] Auto-selects active sprint; falls back to first planned sprint
+- [x] Drag from backlog → sprint column: `PATCH /api/issues/{id}` sets `sprintId`
+- [x] Drag from sprint → backlog: `PATCH /api/issues/{id}` with empty-Guid sentinel clears `sprintId`
+- [x] Sprint selector dropdown showing all project sprints
+
+### Cumulative flow diagram
+- [x] `GET /api/projects/{id}/reports/cfd?days=N` — auto-upserts today's snapshot; returns `{ cfd: CfdPoint[] }`
+- [x] `board_snapshots` table — one row per project×column×day, `ON CONFLICT DO UPDATE` for idempotency
+- [x] `/p/:slug/reports/cfd` — stacked AreaChart (Recharts), day-range selector (7 / 14 / 30 / 60 / 90 days)
+- [x] Empty state ("no data yet") until first snapshot accumulates
+
 ### Board enhancements
 - [x] **Filter by epic** (dropdown; "all" / specific epic / "none")
 - [x] **Filter by sprint** (`active sprint` quick filter, "all", "none", or specific sprint)
@@ -89,7 +106,7 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [ ] Drag issue onto a sprint card to assign it (sprint sidebar)
 - [ ] Drag issue onto an epic to assign it
 - [ ] Bulk move issues between sprints
-- [ ] Sprint planning view: backlog (left) ↔ sprint (right) drag handoff
+- [x] Sprint planning view: backlog (left) ↔ sprint (right) drag handoff
 - [ ] Issue dependencies (blocked-by / blocking) graph
 - [ ] Sub-issues / parent issue
 - [ ] Estimate poker (multi-vote on points)
@@ -103,7 +120,7 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 
 ### Reporting
 - [x] Burndown chart (per active sprint)
-- [ ] Cumulative flow diagram
+- [x] Cumulative flow diagram
 - [ ] Lead time / cycle time histograms
 - [ ] Per-assignee throughput
 - [ ] Epic burnup

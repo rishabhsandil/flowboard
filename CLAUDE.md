@@ -115,6 +115,47 @@ After API is up on `:8080`, see `.claude/commands/test-endpoints.md` for a one-s
 - **Optional-filter SQL pattern** (see `IssueQueries.ListByProject`): `WHERE (@X IS NULL OR col = @X)` for each filter. For nullable FKs, accept the empty-Guid sentinel `'00000000-0000-0000-0000-000000000000'` to mean "filter to NULL". Same sentinel is used by `IssueQueries.Update` to clear an FK.
 - **Frontend error UX**: `client/src/lib/api.ts` toasts every non-401 backend error via `lib/toast.tsx`. Forms that render the error inline pass `{ silent: true }` on the request config (axios module-augmented). Use `humanizeApiError(code)` to map known error codes to user-readable copy.
 
+## Post-implementation checklist (mandatory after every code change / feature)
+
+Run these steps in order every time code is written or modified:
+
+### 1 — Backend tests
+```powershell
+# Unit + structural tests (no DB needed):
+& "C:\Program Files\dotnet\dotnet.exe" test FlowBoard.sln --nologo
+
+# Integration tests (need real Postgres — set the env var once per shell):
+$env:FLOWBOARD_TEST_DB = 'Host=localhost;Port=5432;Username=postgres;Password=<password>;Database=postgres'
+& "C:\Program Files\dotnet\dotnet.exe" test FlowBoard.sln --nologo
+```
+
+All tests must be **green** before continuing.
+
+### 2 — Frontend lint
+```powershell
+Set-Location client
+npm run lint
+```
+
+Fix every ESLint error before continuing.
+
+### 3 — Playwright e2e tests
+```powershell
+Set-Location client
+npx playwright test
+```
+
+The suite lives in `client/tests/`. Tests hit the running local stack
+(`http://localhost:8080` API, `http://localhost:5173` client). If the API is
+not running, start it first (see **Build / run** above). All tests must pass.
+
+### 4 — Docs
+After every feature, update as needed (only the sections that actually changed):
+- `README.md` — user-facing features, new routes, env vars
+- `docs/FEATURES.md` — detailed feature descriptions
+- `docs/queries.md` — any new or changed SQL
+- `CLAUDE.md` — any new conventions or gotchas discovered
+
 ## Don't
 
 - Don't introduce EF Core. Raw SQL is the showcase.

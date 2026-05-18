@@ -175,3 +175,56 @@ ORDER BY i.closed_at IS NULL DESC,
          i.updated_at DESC
 OFFSET @skip LIMIT @take;
 ```
+
+---
+
+## 6. CFD snapshot upsert (idempotent daily accumulation)
+
+**Where it's used:** `GET /api/projects/{id}/reports/cfd` — called once per visit, auto-upserts today's counts before returning data.
+
+**Why this shape:**
+- `INSERT … ON CONFLICT (project_id, column_id, snapped_at) DO UPDATE` makes every call idempotent: re-visiting the page on the same day simply overwrites stale counts rather than inserting a duplicate.
+- The inner `SELECT` counts open issues per column in one pass; no temp table needed.
+- Data accumulates naturally — each calendar day the page is visited adds one row per column, giving the CFD its historical depth over time.
+
+```sql
+INSERT INTO board_snapshots (project_id, column_id, column_name, issue_count, snapped_at)
+SELECT
+  c.project_id,
+  c.id        AS column_id,
+  c.name      AS column_name,
+  COUNT(i.id) AS issue_count,
+  CURRENT_DATE AS snapped_at
+FROM columns c
+LEFT JOIN issues i
+  ON i.column_id = c.id
+  AND i.closed_at IS NULL
+WHERE c.project_id = @ProjectId
+GROUP BY c.project_id, c.id, c.name
+ON CONFLICT (project_id, column_id, snapped_at)
+DO UPDATE SET
+  issue_count = EXCLUDED.issue_count,
+  column_name = EXCLUDED.column_name;
+```
+
+---
+
+## 7. CFD historical data retrieval
+
+**Where it's used:** `GET /api/projects/{id}/reports/cfd?days=N` — fetches the last N days of snapshots for the stacked AreaChart.
+
+**Why this shape:**
+- `CURRENT_DATE - (@Days::int - 1)` anchors the window so "30 days" includes today (day 30) back through day 1, not 30 days *before* today.
+- Ordering by `(snapped_at, column_name)` is important: the React client pivots rows into `{ date, [colName]: count }` objects; consistent ordering means no extra sorting on the frontend.
+- The client derives the set of unique column names from the returned rows and passes them to Recharts as `<Area>` keys.
+
+```sql
+SELECT
+  snapped_at  AS day,
+  column_name,
+  issue_count
+FROM board_snapshots
+WHERE project_id = @ProjectId
+  AND snapped_at >= CURRENT_DATE - (@Days::int - 1)
+ORDER BY snapped_at, column_name;
+```

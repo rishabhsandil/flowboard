@@ -46,4 +46,15 @@ public sealed class FlowBoardFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Jwt__Secret",        null);
         Environment.SetEnvironmentVariable("Jwt__RefreshSecret", null);
     }
+
+    /// <summary>
+    /// All test clients send <c>X-Requested-With: XMLHttpRequest</c> so the
+    /// <see cref="FlowBoard.Api.Middleware.CsrfProtectionMiddleware"/> does not
+    /// reject mutating requests in integration tests.
+    /// </summary>
+    protected override void ConfigureClient(HttpClient client)
+    {
+        base.ConfigureClient(client);
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+    }
 }

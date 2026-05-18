@@ -14,6 +14,11 @@ declare module 'axios' {
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api',
+  // CSRF defense-in-depth: the backend CsrfProtectionMiddleware requires this
+  // header on all state-mutating requests. Browsers cannot send custom headers
+  // cross-site without a CORS preflight, so this header proves the request
+  // originated from JavaScript running on an allowed origin.
+  headers: { 'X-Requested-With': 'XMLHttpRequest' },
 });
 
 api.interceptors.request.use((config) => {

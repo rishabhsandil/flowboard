@@ -34,6 +34,8 @@ export default function ProjectLayout() {
           <SidebarLink to={`/p/${slug}/issues`}>Issues</SidebarLink>
           <SidebarLink to={`/p/${slug}/epics`}>Epics</SidebarLink>
           <SidebarLink to={`/p/${slug}/sprints`}>Sprints</SidebarLink>
+          <SidebarLink to={`/p/${slug}/plan`}>Plan</SidebarLink>
+          <SidebarLink to={`/p/${slug}/reports/cfd`}>CFD</SidebarLink>
           <SidebarLink to={`/p/${slug}/activity`}>Activity</SidebarLink>
           <SidebarLink to={`/p/${slug}/settings`}>Settings</SidebarLink>
         </nav>

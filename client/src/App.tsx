@@ -19,6 +19,8 @@ import IssuesPage from './pages/IssuesPage';
 import ActivityPage from './pages/ActivityPage';
 import MembersPage from './pages/MembersPage';
 import SettingsLayout, { SettingsGeneralPage } from './pages/SettingsLayout';
+import SprintPlanningPage from './pages/SprintPlanningPage';
+import CfdPage from './pages/CfdPage';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.accessToken);
@@ -63,6 +65,8 @@ export default function App() {
           <Route path="epics/:id" element={<EpicDetailPage />} />
           <Route path="sprints" element={<SprintsPage />} />
           <Route path="sprints/:id" element={<SprintDetailPage />} />
+          <Route path="plan" element={<SprintPlanningPage />} />
+          <Route path="reports/cfd" element={<CfdPage />} />
           <Route path="activity" element={<ActivityPage />} />
           {/* Legacy direct /labels link still works — redirects into the
               new Settings shell so external bookmarks don't 404. */}

@@ -232,3 +232,10 @@ public record ActivityRow(
 /// <c>Remaining</c> is a bigint arithmetic result → <see cref="long"/>.
 /// </summary>
 public record BurndownPoint(DateTime Day, long Remaining);
+
+// ---------- CUMULATIVE FLOW DIAGRAM ----------
+/// <summary>
+/// One data point for the CFD chart: date + column name + issue count.
+/// <c>Day</c> is a DATE column → <see cref="DateTime"/> per Npgsql rules.
+/// </summary>
+public record CfdPoint(DateTime Day, string ColumnName, int IssueCount);

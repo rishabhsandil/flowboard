@@ -62,6 +62,40 @@ export default function ActivityPage() {
     enabled: !!projectId,
   });
 
+  const { data: epics } = useQuery({
+    queryKey: ['epics', projectId],
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; title: string }[] }>(`/projects/${projectId}/epics`))
+        .data.items,
+    enabled: !!projectId,
+  });
+
+  const { data: sprints } = useQuery({
+    queryKey: ['sprints', projectId],
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; name: string }[] }>(`/projects/${projectId}/sprints`))
+        .data.items,
+    enabled: !!projectId,
+  });
+
+  const { data: board } = useQuery({
+    queryKey: ['board', projectId],
+    queryFn: async () =>
+      (await api.get<{ columns: { id: string; name: string }[] }>(`/projects/${projectId}/board`))
+        .data,
+    enabled: !!projectId,
+    retry: false, // In case board is missing
+  });
+
+  const idToName = useMemo(() => {
+    const map = new Map<string, string>();
+    members?.forEach((m) => map.set(m.id, m.name));
+    epics?.forEach((e) => map.set(e.id, e.title));
+    sprints?.forEach((s) => map.set(s.id, s.name));
+    board?.columns?.forEach((c) => map.set(c.id, c.name));
+    return map;
+  }, [members, epics, sprints, board]);
+
   const { data, isLoading } = useQuery({
     queryKey: ['project-activity', projectId, skip, typeFilter, actorId, startDate, endDate],
     queryFn: async () => {
@@ -179,9 +213,44 @@ export default function ActivityPage() {
                   disabled={!r.issueId}
                   className={`block text-left w-full ${r.issueId ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
                 >
-                  <div className="mono text-xs text-text">
+                  <div className="mono text-xs text-text flex items-center gap-1 flex-wrap">
                     <span>{r.actorName ?? 'system'}</span>{' '}
-                    <span className="text-text-dim">{describe(r)}</span>
+                    <span className="text-text-dim flex items-center">
+                      {(() => {
+                        const desc = describe(r, idToName);
+                        return (
+                          <>
+                            {desc.text}
+                            {desc.details && (
+                              <span
+                                className="relative group/tooltip inline-block ml-1 cursor-help"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <svg
+                                  className="w-3 h-3 text-text-dim hover:text-accent"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                                <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-max max-w-xs bg-bg-panel border border-border p-2 rounded shadow-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity z-10 text-left whitespace-pre-wrap text-text">
+                                  {desc.details}
+                                </span>
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </span>
                   </div>
                   <div className="mono text-[10px] text-text-dim mt-0.5">
                     {new Date(r.createdAt).toLocaleString()}
@@ -227,11 +296,16 @@ export default function ActivityPage() {
   );
 }
 
-function describe(row: ActivityRow): string {
+function describe(
+  row: ActivityRow,
+  idToName: Map<string, string>,
+): { text: string; details?: string } {
   const p = safeParse(row.payload);
+  const textOnly = (text: string) => ({ text });
+
   switch (row.type) {
     case 'issue_created':
-      return `created an issue${p?.title ? ` — "${p.title}"` : ''}`;
+      return textOnly(`created an issue${p?.title ? ` — "${p.title}"` : ''}`);
     case 'issue_updated': {
       const fieldLabels: Record<string, string> = {
         columnId: 'board column',
@@ -241,39 +315,64 @@ function describe(row: ActivityRow): string {
         assigneeId: 'assignee',
         parentId: 'parent issue',
       };
-      const fields = (p?.changes as Array<{ field: string }> | undefined)
-        ?.map((c) => fieldLabels[c.field] ?? c.field)
-        .join(', ');
-      return fields ? `updated ${fields}` : 'updated an issue';
+
+      const formatValue = (val: unknown) => {
+        if (val === null || val === undefined) return 'none';
+        const str = String(val);
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) {
+          return idToName.get(str) ?? str.slice(0, 8);
+        }
+        return str.length > 20 ? str.slice(0, 20) + '…' : str;
+      };
+
+      const changes = p?.changes as
+        | Array<{ field: string; from?: unknown; to?: unknown }>
+        | undefined;
+      if (!changes || changes.length === 0) return textOnly('updated an issue');
+
+      const fieldNames = changes.map((c) => fieldLabels[c.field] ?? c.field).join(', ');
+
+      const details = changes
+        .filter((c) => c.from !== undefined || c.to !== undefined)
+        .map(
+          (c) =>
+            `${fieldLabels[c.field] ?? c.field}: ${formatValue(c.from)} → ${formatValue(c.to)}`,
+        )
+        .join('\n');
+
+      return {
+        text: fieldNames ? `updated ${fieldNames}` : 'updated an issue',
+        details: details || undefined,
+      };
     }
     case 'issue_closed':
-      return 'closed an issue';
+      return textOnly('closed an issue');
     case 'issue_reopened':
-      return 'reopened an issue';
+      return textOnly('reopened an issue');
     case 'issue_deleted':
-      return p?.title ? `deleted issue "${p.title}"` : 'deleted an issue';
+      return textOnly(p?.title ? `deleted issue "${p.title}"` : 'deleted an issue');
     case 'comment_added':
-      return p?.snippet ? `commented: "${p.snippet}"` : 'added a comment';
+      return textOnly(p?.snippet ? `commented: "${p.snippet}"` : 'added a comment');
     case 'comment_edited':
-      return 'edited a comment';
+      return textOnly('edited a comment');
     case 'comment_deleted':
-      return 'deleted a comment';
+      return textOnly('deleted a comment');
     case 'mention':
-      return 'mentioned a member';
+      return textOnly('mentioned a member');
     case 'label_added':
-      return p?.name ? `added label "${p.name}"` : 'added a label';
+      return textOnly(p?.name ? `added label "${p.name}"` : 'added a label');
     case 'label_removed':
-      return p?.name ? `removed label "${p.name}"` : 'removed a label';
+      return textOnly(p?.name ? `removed label "${p.name}"` : 'removed a label');
     case 'member_added':
-      return p?.email ? `added ${p.email} as ${p.role ?? 'member'}` : 'added a member';
+      return textOnly(p?.email ? `added ${p.email} as ${p.role ?? 'member'}` : 'added a member');
     case 'member_removed':
-      return 'removed a member';
+      return textOnly('removed a member');
     case 'member_left':
-      return 'left the project';
+      return textOnly('left the project');
     case 'member_role_changed':
-      return p?.from && p?.to ? `changed a role: ${p.from} → ${p.to}` : 'changed a role';
+      return textOnly(p?.from && p?.to ? `changed a role: ${p.from} → ${p.to}` : 'changed a role');
     default:
-      return row.type.replace(/_/g, ' ');
+      return textOnly(row.type.replace(/_/g, ' '));
   }
 }
 
