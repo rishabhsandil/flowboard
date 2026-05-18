@@ -36,6 +36,16 @@ Thumbs.db
 *.log
 .vercel
 
+# Playwright auth state & test artefacts (contain live tokens — never commit)
+client/playwright/.auth/
+client/test-results/
+client/blob-report/
+client/playwright-report/
+
+# Daily agent credentials & generated logs (real passwords — never commit)
+scripts/.env.local
+scripts/logs/
+
 # Claude Code (commit shared config; ignore per-dev overrides)
 .claude/settings.local.json
 .claude/.credentials/
