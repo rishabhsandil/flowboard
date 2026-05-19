@@ -152,6 +152,7 @@ public record IssueListRow(
     string? EpicColor,
     string? SprintName,
     string? AssigneeName,
+    string? AssigneeAvatarUrl,
     string LabelsJson
 );
 

@@ -27,6 +27,8 @@ public static class IssueQueries
                 'child_count',  (SELECT COUNT(*) FROM issues WHERE parent_id = i.id),
                 'epic_color',   e.color,
                 'epic_title',   e.title,
+                'assignee_name',       u.name,
+                'assignee_avatar_url', u.avatar_url,
                 'labels',       COALESCE(lb.labels, '[]'::json)
               ) ORDER BY i.position
             ) FILTER (WHERE i.id IS NOT NULL),
@@ -35,6 +37,7 @@ public static class IssueQueries
         FROM columns c
         LEFT JOIN issues i ON i.column_id = c.id
         LEFT JOIN epics  e ON e.id = i.epic_id
+        LEFT JOIN users  u ON u.id = i.assignee_id
         LEFT JOIN LATERAL (
           SELECT json_agg(
                    json_build_object('id', l.id, 'name', l.name, 'color', l.color)
@@ -146,6 +149,7 @@ public static class IssueQueries
                e.title AS epic_title, e.color AS epic_color,
                s.name AS sprint_name,
                u.name AS assignee_name,
+               u.avatar_url AS assignee_avatar_url,
                COALESCE(lb.labels, '[]'::json)::text AS labels_json
         FROM issues i
         LEFT JOIN columns c ON c.id = i.column_id

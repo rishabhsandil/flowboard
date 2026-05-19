@@ -99,10 +99,12 @@ public static class SprintQueries
     public const string SprintIssues = @"
         SELECT i.id, i.title, i.priority, i.story_points, i.assignee_id,
                i.column_id, i.epic_id, i.closed_at,
-               c.name AS column_name, e.color AS epic_color, e.title AS epic_title
+               c.name AS column_name, e.color AS epic_color, e.title AS epic_title,
+               u.name AS assignee_name, u.avatar_url AS assignee_avatar_url
         FROM issues i
         LEFT JOIN columns c ON c.id = i.column_id
         LEFT JOIN epics   e ON e.id = i.epic_id
+        LEFT JOIN users   u ON u.id = i.assignee_id
         WHERE i.sprint_id = @SprintId
         ORDER BY i.closed_at IS NULL DESC, i.priority, i.position;";
 }
