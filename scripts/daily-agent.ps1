@@ -1,30 +1,51 @@
-# FlowBoard Daily Agent
+﻿# FlowBoard Daily Agent
 # Runs at 2 AM via Windows Task Scheduler.
-# Logs into FlowBoard, picks up In Progress items, implements them,
-# runs the full post-implementation checklist, then moves each completed
-# item to In Review for the owner to review the next morning.
+# Picks up "In Progress" items, implements them, runs the post-implementation
+# checklist, then moves each completed item to "In Review".
 #
 # Credentials live in scripts/.env.local (gitignored) — never in this file.
+#
+# Run -DryRun to preview what would happen (logs the In Progress items and the
+# prompt that would be sent) without invoking Claude.
+
+[CmdletBinding()]
+param(
+    [switch]$DryRun
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-$repoRoot  = "C:\Users\Rish\Desktop\Personal GIT\FlowBoard"
-$logDir    = Join-Path $repoRoot "scripts\logs"
-$envFile   = Join-Path $repoRoot "scripts\.env.local"
-$claudeExe = "C:\Users\Rish\.local\bin\claude.exe"
+$repoRoot   = 'C:\Users\Rish\Desktop\Personal GIT\FlowBoard'
+$logDir     = Join-Path $repoRoot 'scripts\logs'
+$envFile    = Join-Path $repoRoot 'scripts\.env.local'
+$claudeExe  = 'C:\Users\Rish\.local\bin\claude.exe'
+$dotnetExe  = 'C:\Program Files\dotnet\dotnet.exe'
+$apiBase    = 'http://localhost:8080'
+$projectId  = 'b79e49d3-0497-4c5d-b205-f39d0684374e'   # FlowBoard project
+$inProgress = 'a66f8119-c876-442c-9e32-d24ca9954870'   # In Progress column
+$inReview   = '1d06c31d-1d07-4850-8f8c-74654319ad7f'   # In Review column
 
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-$logFile = Join-Path $logDir "agent-$(Get-Date -Format 'yyyy-MM-dd').log"
+$today     = Get-Date -Format 'yyyy-MM-dd'
+$logFile   = Join-Path $logDir "agent-$today.log"
+$debugFile = Join-Path $logDir "claude-debug-$today.log"
+$apiLog    = Join-Path $logDir "api-$today.log"
 
-function Log { param([string]$msg) $ts = Get-Date -Format 'HH:mm:ss'; "$ts  $msg" | Tee-Object -FilePath $logFile -Append }
+function Log { param([string]$msg)
+    $ts = Get-Date -Format 'HH:mm:ss'
+    $line = "$ts  $msg"
+    Add-Content -Path $logFile -Value $line -Encoding utf8
+    Write-Host $line
+}
 
-Log "=== FlowBoard daily agent starting ==="
+Log '=== FlowBoard daily agent starting ==='
+if ($DryRun) { Log 'MODE: dry-run (will not invoke Claude)' }
 
-# ── Load credentials from .env.local (gitignored) ────────────────────────────
+# ── Load credentials ────────────────────────────────────────────────────────
 if (-not (Test-Path $envFile)) {
-    Log "ERROR: $envFile not found. Create it with FLOWBOARD_EMAIL, FLOWBOARD_PASSWORD, FLOWBOARD_TEST_DB."
+    Log "ERROR: $envFile not found. Need FLOWBOARD_EMAIL, FLOWBOARD_PASSWORD, FLOWBOARD_TEST_DB."
     exit 1
 }
 foreach ($line in Get-Content $envFile) {
@@ -32,140 +53,202 @@ foreach ($line in Get-Content $envFile) {
     $key, $val = $line -split '=', 2
     [System.Environment]::SetEnvironmentVariable($key.Trim(), $val.Trim(), 'Process')
 }
-
 $fbEmail    = $env:FLOWBOARD_EMAIL
 $fbPassword = $env:FLOWBOARD_PASSWORD
-$env:FLOWBOARD_TEST_DB = $env:FLOWBOARD_TEST_DB
-
 if (-not $fbEmail -or -not $fbPassword) {
-    Log "ERROR: FLOWBOARD_EMAIL or FLOWBOARD_PASSWORD missing in .env.local"
+    Log 'ERROR: FLOWBOARD_EMAIL or FLOWBOARD_PASSWORD missing in .env.local'
     exit 1
 }
 
-# ── Self-contained prompt for Claude Code ─────────────────────────────────────
-$prompt = @"
+# ── Ensure FlowBoard.Api is up ──────────────────────────────────────────────
+function Test-ApiUp {
+    try { (Invoke-WebRequest -Uri "$apiBase/api/health" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop).StatusCode -eq 200 }
+    catch { $false }
+}
+
+if (-not (Test-ApiUp)) {
+    Log 'API not reachable — starting FlowBoard.Api…'
+    Get-Process FlowBoard.Api -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Process -FilePath $dotnetExe `
+        -ArgumentList 'run','--project','src/FlowBoard.Api','--no-build' `
+        -WorkingDirectory $repoRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $apiLog `
+        -RedirectStandardError "$apiLog.err"
+
+    $deadline = (Get-Date).AddSeconds(45)
+    while (-not (Test-ApiUp)) {
+        if ((Get-Date) -gt $deadline) {
+            Log 'ERROR: API did not come up within 45s. Aborting.'
+            exit 2
+        }
+        Start-Sleep -Seconds 2
+    }
+    Log 'API is up.'
+} else {
+    Log 'API already running.'
+}
+
+# ── Log in directly from PowerShell so the agent gets a ready token ────────
+$loginBody = @{ email = $fbEmail; password = $fbPassword } | ConvertTo-Json -Compress
+try {
+    $loginResp = Invoke-RestMethod -Uri "$apiBase/api/auth/login" -Method Post `
+        -Body $loginBody -ContentType 'application/json' `
+        -Headers @{ 'X-Requested-With' = 'XMLHttpRequest' } -ErrorAction Stop
+} catch {
+    Log "ERROR: login failed: $($_.Exception.Message)"
+    exit 3
+}
+$token = $loginResp.accessToken
+if (-not $token) {
+    Log 'ERROR: login succeeded but no accessToken in response.'
+    exit 3
+}
+Log 'Login OK.'
+
+# ── Pre-flight: how many In Progress items? ─────────────────────────────────
+$auth = @{ Authorization = "Bearer $token" }
+$board = Invoke-RestMethod -Uri "$apiBase/api/projects/$projectId/board" -Headers $auth -ErrorAction Stop
+$inProgressIssues = @(($board.columns | Where-Object { $_.id -eq $inProgress }).issues)
+
+Log "In Progress count: $($inProgressIssues.Count)"
+if ($inProgressIssues.Count -eq 0) {
+    Log 'No In Progress items — nothing to do. Exiting cleanly.'
+    Log '=== Agent finished ==='
+    exit 0
+}
+
+foreach ($i in $inProgressIssues) {
+    Log "  • $($i.title)  [id=$($i.id)]"
+}
+
+# ── Build prompt ────────────────────────────────────────────────────────────
+$issueList = ($inProgressIssues | ForEach-Object { "- $($_.title)  (id: $($_.id))" }) -join "`n"
+
+# Single-quoted heredoc — no PS interpolation, no escaping headaches.
+# Placeholders below are substituted with .Replace() after the close.
+$promptTemplate = @'
 You are running FULLY UNATTENDED at 2 AM as an automated agent. There is
-nobody at the keyboard. You must NEVER ask a question, NEVER pause for input,
-and NEVER say "I need clarification before proceeding." If you face any
-ambiguity, make the most reasonable decision yourself, document your choice
-in the log output and on the ticket itself as a comment, and keep going. If
-something fails unrecoverably, log the error clearly and move on to the next
-issue — do not stop the entire run.
+nobody at the keyboard. NEVER ask a question, NEVER pause for input. If
+you face ambiguity, make the most reasonable decision, document it on the
+ticket as a comment, and keep going. If something fails unrecoverably,
+log it clearly and move to the next issue.
 
-You are working autonomously on the FlowBoard project — a ZenHub/Jira clone
-built with ASP.NET Core 10 + C# 14 (raw SQL via Dapper + Npgsql, no EF) and
-React 18 + TypeScript + Vite + Tailwind + Zustand + TanStack Query.
+You are working on FlowBoard — a ZenHub/Jira clone built with ASP.NET
+Core 10 + C# 14 (raw SQL via Dapper + Npgsql, no EF) and React 18 + TS +
+Vite + Tailwind + Zustand + TanStack Query.
 
-Working directory: C:\Users\Rish\Desktop\Personal GIT\FlowBoard
-Read CLAUDE.md in that directory first — it contains mandatory coding
-conventions, Dapper gotchas, auth setup, and the full post-implementation
-checklist that you MUST follow.
+Working directory: {{REPO_ROOT}}
+Read .claude/skills/coding-standards/SKILL.md FIRST — mandatory rules
+for authorization, validation, Dapper type mapping, error handling,
+query keys, and the empty-Guid sentinel. Also read CLAUDE.md.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — Log into FlowBoard
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-POST http://localhost:8080/api/auth/login
-Content-Type: application/json
-Body: {"email":"$fbEmail","password":"$fbPassword"}
+PRE-FLIGHT (already done by the wrapper)
+- FlowBoard.Api is running on {{API_BASE}}
+- You are already logged in. Use this token on every API call:
+    Authorization: Bearer {{TOKEN}}
+- Every mutating call also needs: X-Requested-With: XMLHttpRequest
 
-Save the accessToken from the response — you need it for all subsequent calls.
-If the server is not running, start it first:
-  Get-Process FlowBoard.Api -ErrorAction SilentlyContinue | Stop-Process -Force
-  Start-Process -FilePath "C:\Program Files\dotnet\dotnet.exe" ``
-    -ArgumentList "run","--project","src/FlowBoard.Api","--no-build" ``
-    -WorkingDirectory "C:\Users\Rish\Desktop\Personal GIT\FlowBoard" ``
-    -NoNewWindow -RedirectStandardOutput "scripts\logs\api.log"
-  Start-Sleep -Seconds 5
+STEP 1 — Issues to implement
+Project id:      {{PROJECT_ID}}
+In Progress col: {{IN_PROGRESS_COL}}
+In Review col:   {{IN_REVIEW_COL}}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 2 — Get In Progress issues
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-GET http://localhost:8080/api/projects/b79e49d3-0497-4c5d-b205-f39d0684374e/board
-Authorization: Bearer <accessToken>
+There are {{ISSUE_COUNT}} issue(s) currently In Progress:
 
-Find the column named "In Progress" (ID: a66f8119-c876-442c-9e32-d24ca9954870).
-Collect all issues in that column. If the column is empty, log "No In Progress
-items — nothing to do" and stop.
+{{ISSUE_LIST}}
 
-For each issue you need more detail (description, story points), call:
-GET http://localhost:8080/api/projects/b79e49d3-0497-4c5d-b205-f39d0684374e/issues/{issueId}
-Authorization: Bearer <accessToken>
+For each, fetch detail:
+  GET {{API_BASE}}/api/issues/{issueId}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 3 — Implement each issue
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-For each In Progress issue, implement it fully using the title and description
-as your spec. Follow CLAUDE.md conventions strictly. Then run the mandatory
-post-implementation checklist (in this exact order):
+Treat title + description as your spec. If the issue has sub-issues
+(children), implement each child first, then close the parent only
+after every child is closed. Children:
+  GET {{API_BASE}}/api/issues/{issueId}/children
 
-  3a. Build to confirm it compiles:
-      & "C:\Program Files\dotnet\dotnet.exe" build FlowBoard.sln --nologo -c Release
+STEP 2 — Implement
+Implement the issue end-to-end following the standards. After each
+issue, run the post-implementation checklist in this order:
 
-  3b. Backend unit + integration tests (set env var first):
-      `$env:FLOWBOARD_TEST_DB = '$($env:FLOWBOARD_TEST_DB)'`
-      & "C:\Program Files\dotnet\dotnet.exe" test FlowBoard.sln --nologo
-      All tests must be green. Fix failures before continuing.
+  2a. Build (release):
+      & "{{DOTNET_EXE}}" build FlowBoard.sln -nologo -c Release
 
-  3c. Frontend lint:
-      Set-Location "C:\Users\Rish\Desktop\Personal GIT\FlowBoard\client"
+  2b. Backend tests (FLOWBOARD_TEST_DB is already in env):
+      & "{{DOTNET_EXE}}" test FlowBoard.sln --nologo
+
+  2c. Frontend lint:
+      Set-Location "{{REPO_ROOT}}\client"
       npm run lint
-      Fix every ESLint error before continuing.
 
-  3d. Playwright e2e tests (only if both API and Vite dev server are reachable):
-      Check: Invoke-WebRequest http://localhost:5173 -UseBasicParsing -ErrorAction SilentlyContinue
-      If reachable:
-        Set-Location "C:\Users\Rish\Desktop\Personal GIT\FlowBoard\client"
-        npx playwright test
-        All tests must pass.
-      If not reachable: log "Vite not running — skipping Playwright" and continue.
+  2d. Playwright e2e (only if Vite is reachable on :5173):
+      try { Invoke-WebRequest http://localhost:5173 -UseBasicParsing -TimeoutSec 3 } catch { return }
+      If reachable: npx playwright test
 
-  3e. Update docs (only what actually changed):
-      - README.md (new routes, env vars, user-visible features)
-      - docs/FEATURES.md (mark the feature [x])
-      - docs/queries.md (new or changed SQL with annotations)
-      - CLAUDE.md (new conventions or Dapper gotchas discovered)
+  2e. Update only docs that actually changed:
+      README.md, docs/FEATURES.md, docs/queries.md, CLAUDE.md.
 
-If the issue is too large to complete in one session, leave it In Progress,
-note what was done vs. what remains in a comment on the issue, and move on
-to the next one.
+If any step fails after 5 fix attempts, leave the issue In Progress,
+add a comment summarising what was done vs. what remains, and continue.
+Do not run git commit or git push — the human commits themselves.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 4 — Move completed issues to In Review
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-For each successfully implemented issue (all checklist steps passed):
+STEP 3 — Move completed issues to In Review
+For each issue whose checklist all passed:
 
-PATCH http://localhost:8080/api/issues/{issueId}
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-X-Requested-With: XMLHttpRequest
-Body: {"columnId":"1d06c31d-1d07-4850-8f8c-74654319ad7f"}
+  PATCH {{API_BASE}}/api/issues/{issueId}
+  Headers: Authorization: Bearer {{TOKEN}}
+           Content-Type: application/json
+           X-Requested-With: XMLHttpRequest
+  Body:    { "columnId": "{{IN_REVIEW_COL}}" }
 
-In Review column ID: 1d06c31d-1d07-4850-8f8c-74654319ad7f
+END-OF-RUN SUMMARY
+At the very end, print a single block to stdout with this exact format
+(the wrapper scrapes for it):
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-IMPORTANT REMINDERS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Every mutating API call needs header: X-Requested-With: XMLHttpRequest
-- Never use EF Core. Always raw SQL via Dapper in src/FlowBoard.Core/Data/Queries/*.cs
-- Use DateTime (not DateOnly) in result records for DATE/TIMESTAMPTZ columns
-- Use long (not int) for COUNT/SUM aggregates
-- Empty-Guid sentinel 00000000-0000-0000-0000-000000000000 clears nullable FKs
-- Authorization for every project-scoped endpoint: ProjectAuthorizer.IsMemberAsync
-- Read the issue description carefully before coding — it is your spec
-- If unsure about scope, implement the minimal working version that satisfies the title/description
-- NEVER ask a question. NEVER wait for input. Make a decision and log it.
-- NEVER run git commit or git push — the user always commits themselves
-- If a test fails after 5 fix attempts, log the failure, leave the issue In Progress, and continue
-- If the API is unreachable and won't start, log it and exit cleanly
-"@
+[DAILY-AGENT-SUMMARY]
+moved_to_review: <comma-separated issue ids, or none>
+left_in_progress: <comma-separated issue ids, or none>
+errors: <one-line summary, or none>
+[/DAILY-AGENT-SUMMARY]
+'@
 
-# ── Invoke Claude Code in headless print mode ─────────────────────────────────
-Log "Launching Claude Code agent..."
+$prompt = $promptTemplate
+$prompt = $prompt.Replace('{{REPO_ROOT}}',       $repoRoot)
+$prompt = $prompt.Replace('{{API_BASE}}',        $apiBase)
+$prompt = $prompt.Replace('{{TOKEN}}',           $token)
+$prompt = $prompt.Replace('{{PROJECT_ID}}',      $projectId)
+$prompt = $prompt.Replace('{{IN_PROGRESS_COL}}', $inProgress)
+$prompt = $prompt.Replace('{{IN_REVIEW_COL}}',   $inReview)
+$prompt = $prompt.Replace('{{ISSUE_COUNT}}',     [string]$inProgressIssues.Count)
+$prompt = $prompt.Replace('{{ISSUE_LIST}}',      $issueList)
+$prompt = $prompt.Replace('{{DOTNET_EXE}}',      $dotnetExe)
 
+Log ("Prompt built: {0} chars covering {1} issue(s)." -f $prompt.Length, $inProgressIssues.Count)
+
+if ($DryRun) {
+    $promptPreview = Join-Path $logDir "dryrun-prompt-$today.txt"
+    Set-Content -Path $promptPreview -Value $prompt -Encoding utf8
+    Log "DRY RUN: prompt written to $promptPreview - not invoking Claude."
+    Log '=== Agent finished ==='
+    exit 0
+}
+
+# ── Invoke Claude Code via stdin (more reliable than long -p arg) ──────────
+Log 'Launching Claude Code agent (debug log: claude-debug log)…'
 Set-Location $repoRoot
 
-$output = & $claudeExe --print --dangerously-skip-permissions -p $prompt 2>&1
+# Pipe the prompt via stdin; this avoids the "no stdin data received in 3s"
+# warning and any quoting weirdness with long multi-line CLI arguments.
+$stdout = $prompt | & $claudeExe `
+    --print `
+    --dangerously-skip-permissions `
+    --debug-file $debugFile `
+    --output-format text 2>&1
+$exit = $LASTEXITCODE
 
-$output | Out-File -FilePath $logFile -Append -Encoding utf8
+"---claude stdout---"           | Add-Content -Path $logFile -Encoding utf8
+$stdout                          | Out-File   -FilePath $logFile -Append -Encoding utf8
+"---claude exit: $exit ---"     | Add-Content -Path $logFile -Encoding utf8
 
-Log "=== Agent finished ==="
+Log "Claude exited: $exit"
+Log '=== Agent finished ==='
+exit $exit

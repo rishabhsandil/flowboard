@@ -39,6 +39,7 @@ FlowBoard is a ZenHub-inspired project management tool: a fast Kanban board with
 ### Collaboration & Profile
 - Per-issue and per-project activity log (append-only, filterable feed at `/p/:slug/activity`)
 - Project member invitations + role management (owner / member) with last-owner protection
+- Owner-only **delete project** under **Settings → General** with a type-the-word-`delete` confirmation; cascades to every board / issue / epic / sprint / comment / activity row
 - User profile page (name + avatar URL) with current-password-gated password change that revokes other refresh tokens
 
 ### Settings & UX

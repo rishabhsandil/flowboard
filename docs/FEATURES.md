@@ -81,6 +81,10 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [x] Backend: `POST/PATCH/DELETE /api/projects/{id}/members[/{userId}]` with last-owner protection (`last_owner` error)
 - [x] Activity feed records `member_added` / `member_role_changed` / `member_removed` / `member_left`
 
+### Project management
+- [x] Settings → **General** tab "danger zone": owner-only **delete project** with a type-the-word-`delete` confirmation modal
+- [x] Backend: `DELETE /api/projects/{id}` (owner-only) cascades to the board, columns, issues, epics, sprints, labels, comments, mentions, activities, and board snapshots
+
 ### Activity & profile
 - [x] Per-issue activity feed (in IssueModal) — already shipped
 - [x] Project-wide activity page at `/p/:slug/activity` with type filter + pagination + click-through to issues
