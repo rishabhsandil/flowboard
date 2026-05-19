@@ -26,6 +26,8 @@ export interface BoardIssue {
   story_points: number;
   position: number;
   assignee_id: string | null;
+  assignee_name: string | null;
+  assignee_avatar_url: string | null;
   epic_id: string | null;
   sprint_id: string | null;
   parent_id: string | null;
@@ -42,6 +44,9 @@ export interface SprintIssue {
   title: string;
   priority: Priority;
   story_points: number;
+  assignee_id: string | null;
+  assignee_name: string | null;
+  assignee_avatar_url: string | null;
   column_name: string | null;
   closed_at: string | null;
   epic_color: string | null;
@@ -178,6 +183,7 @@ export interface IssueListRow {
   epicColor: string | null;
   sprintName: string | null;
   assigneeName: string | null;
+  assigneeAvatarUrl: string | null;
   labelsJson: string;
   parentId: string | null;
 }

@@ -2,10 +2,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import { useAuthStore } from '../lib/auth';
 import { useEscapeKey } from '../lib/useEscapeKey';
-import type { EpicWithProgress, Priority, Sprint } from '../types';
+import type { EpicWithProgress, Priority, ProjectMember, Sprint } from '../types';
 import type { Paged } from '../types/api';
 import { MarkdownToolbar } from './MarkdownToolbar';
+import { AssigneePicker } from './AssigneePicker';
 
 interface Props {
   projectId: string;
@@ -35,9 +37,11 @@ export function CreateIssueModal({
   const [points, setPoints] = useState(0);
   const [epicId, setEpicId] = useState<string>(defaultEpicId ?? '');
   const [sprintId, setSprintId] = useState<string>(defaultSprintId ?? '');
+  const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const descRef = useRef<HTMLTextAreaElement>(null);
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   useEscapeKey(onClose);
 
   const { data: epics } = useQuery({
@@ -49,6 +53,11 @@ export function CreateIssueModal({
     queryKey: ['sprints', projectId],
     queryFn: async () =>
       (await api.get<Paged<Sprint>>(`/projects/${projectId}/sprints`)).data.items,
+  });
+  const { data: members } = useQuery({
+    queryKey: ['members', projectId],
+    queryFn: async () =>
+      (await api.get<{ items: ProjectMember[] }>(`/projects/${projectId}/members`)).data.items,
   });
 
   async function submit(e: React.FormEvent) {
@@ -64,6 +73,7 @@ export function CreateIssueModal({
         columnId: firstColumnId,
         epicId: epicId || null,
         sprintId: sprintId || null,
+        assigneeId: assigneeId || null,
         parentId: parentId ?? null,
       });
       onCreated();
@@ -162,6 +172,15 @@ export function CreateIssueModal({
                 />
               </Field>
             </div>
+
+            <Field label="Assignee">
+              <AssigneePicker
+                value={assigneeId}
+                members={members}
+                currentUserId={currentUserId}
+                onChange={setAssigneeId}
+              />
+            </Field>
 
             <div className="grid grid-cols-2 gap-4 pt-2">
               <Field label="Epic">

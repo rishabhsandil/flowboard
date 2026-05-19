@@ -17,6 +17,7 @@ import type {
 import type { Paged } from '../types/api';
 import { IssueModal } from '../components/IssueModal';
 import { CreateIssueModal } from '../components/CreateIssueModal';
+import { Avatar } from '../components/Avatar';
 
 interface Ctx {
   project?: Project;
@@ -81,6 +82,7 @@ export default function IssuesPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkSprintId, setBulkSprintId] = useState('');
   const [bulkLabelId, setBulkLabelId] = useState('');
+  const [bulkAssigneeId, setBulkAssigneeId] = useState('');
 
   // Deep-link support: `?issue=:id` opens the issue modal directly,
   // `?labelId=:id` pre-selects the label filter. Used by the activity feed
@@ -230,6 +232,13 @@ export default function IssuesPage() {
     if (!bulkLabelId) return;
     await runBulk('labeled', (id) => api.post(`/issues/${id}/labels`, { labelId: bulkLabelId }));
     setBulkLabelId('');
+  }
+
+  async function bulkAssign() {
+    if (!bulkAssigneeId) return;
+    const assigneeId = bulkAssigneeId === NONE_GUID ? null : bulkAssigneeId;
+    await runBulk('assigned', (id) => api.patch(`/issues/${id}`, { assigneeId }));
+    setBulkAssigneeId('');
   }
 
   async function bulkClose(closed: boolean) {
@@ -424,6 +433,28 @@ export default function IssuesPage() {
             className="btn-ghost text-xs mono"
             disabled={!bulkLabelId || bulkBusy}
             onClick={bulkApplyLabel}
+          >
+            apply
+          </button>
+
+          <select
+            className="input mono text-xs py-1.5"
+            value={bulkAssigneeId}
+            onChange={(e) => setBulkAssigneeId(e.target.value)}
+            disabled={bulkBusy}
+          >
+            <option value="">assign to…</option>
+            <option value={NONE_GUID}>— unassigned</option>
+            {(members ?? []).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn-ghost text-xs mono"
+            disabled={!bulkAssigneeId || bulkBusy}
+            onClick={bulkAssign}
           >
             apply
           </button>
@@ -646,7 +677,19 @@ function IssueRow({
       </td>
       <td className="px-3 py-2">{row.sprintName ?? <span className="text-text-dim">—</span>}</td>
       <td className="px-3 py-2">
-        {row.assigneeName ?? <span className="text-text-dim">unassigned</span>}
+        {row.assigneeId ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Avatar
+              id={row.assigneeId}
+              name={row.assigneeName}
+              avatarUrl={row.assigneeAvatarUrl}
+              size="sm"
+            />
+            <span className="truncate">{row.assigneeName ?? '—'}</span>
+          </span>
+        ) : (
+          <span className="text-text-dim">unassigned</span>
+        )}
       </td>
       <td className="px-3 py-2 text-right">{row.storyPoints || ''}</td>
     </tr>

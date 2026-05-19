@@ -7,19 +7,34 @@ import { CSS } from '@dnd-kit/utilities';
 interface Props {
   column: BoardColumn;
   onIssueClick: (id: string) => void;
+  /** True when any filter is active — drives the empty-state copy. */
+  filtersActive?: boolean;
 }
 
-export function KanbanColumn({ column, onIssueClick }: Props) {
+export function KanbanColumn({ column, onIssueClick, filtersActive }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const totalPoints = column.issues.reduce((s, i) => s + (i.story_points || 0), 0);
 
   return (
     <div className="bg-bg w-72 flex-shrink-0 flex flex-col">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+      <div
+        className={`px-4 py-3 border-b flex items-center justify-between bg-bg-subtle/30 ${
+          column.isDone ? 'border-b-accent/40' : 'border-border'
+        }`}
+      >
         <h3 className="heading text-xs">{column.name}</h3>
         <div className="flex items-center gap-2 mono text-xs text-text-dim">
-          <span>{column.issues.length}</span>
-          {totalPoints > 0 && <span className="text-accent">{totalPoints}pt</span>}
+          <span
+            className="px-1.5 py-0.5 rounded bg-bg-subtle/80 text-text-muted min-w-[1.25rem] text-center"
+            title="visible issues in this column"
+          >
+            {column.issues.length}
+          </span>
+          {totalPoints > 0 && (
+            <span className="text-accent" title="sum of story points">
+              {totalPoints}pt
+            </span>
+          )}
         </div>
       </div>
 
@@ -35,7 +50,9 @@ export function KanbanColumn({ column, onIssueClick }: Props) {
           </SortableIssue>
         ))}
         {column.issues.length === 0 && (
-          <div className="mono text-xs text-text-dim text-center py-8">// empty</div>
+          <div className="mono text-xs text-text-dim text-center py-8">
+            {filtersActive ? '// no matches' : '// empty'}
+          </div>
         )}
       </div>
     </div>

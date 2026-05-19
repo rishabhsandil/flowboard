@@ -4,6 +4,7 @@ import { Layers } from 'lucide-react';
 import type { BoardIssue } from '../types';
 import { priorityBorder, priorityLabel } from '../lib/priority';
 import { EpicPill } from './EpicPill';
+import { Avatar } from './Avatar';
 
 interface Props {
   issue: BoardIssue;
@@ -82,6 +83,13 @@ export function IssueCard({ issue, onClick, dragging }: Props) {
               {issue.story_points} pt
             </span>
           )}
+          <Avatar
+            id={issue.assignee_id}
+            name={issue.assignee_name}
+            avatarUrl={issue.assignee_avatar_url}
+            size="xs"
+            title={issue.assignee_name ?? 'Unassigned'}
+          />
         </div>
       </div>
     </div>

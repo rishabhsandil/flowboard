@@ -12,29 +12,37 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import { useAuthStore } from '../lib/auth';
 import { toast } from '../lib/toast';
-import type { Board, BoardIssue, EpicWithProgress, Project, Sprint } from '../types';
+import type {
+  Board,
+  BoardIssue,
+  EpicWithProgress,
+  Label,
+  Project,
+  ProjectMember,
+  Sprint,
+} from '../types';
 import type { Paged } from '../types/api';
 import { KanbanColumn } from '../components/KanbanColumn';
 import { IssueCard } from '../components/IssueCard';
 import { CreateIssueModal } from '../components/CreateIssueModal';
 import { IssueModal } from '../components/IssueModal';
+import { BoardFilterBar } from '../components/BoardFilterBar';
+import { DEFAULT_BOARD_FILTERS, type BoardFilters } from '../lib/boardFilters';
 
 interface Ctx {
   project?: Project;
 }
 
-type EpicFilter = 'all' | 'none' | string; // string = epic id
-type SprintFilter = 'all' | 'active' | 'none' | string;
-
 export default function BoardPage() {
   const { project } = useOutletContext<Ctx>();
   const qc = useQueryClient();
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openCreate, setOpenCreate] = useState(false);
   const [openIssueId, setOpenIssueId] = useState<string | null>(null);
-  const [epicFilter, setEpicFilter] = useState<EpicFilter>('all');
-  const [sprintFilter, setSprintFilter] = useState<SprintFilter>('all');
+  const [filters, setFilters] = useState<BoardFilters>(DEFAULT_BOARD_FILTERS);
 
   const queryKey = ['board', project?.id];
   const { data, isLoading } = useQuery({
@@ -55,6 +63,18 @@ export default function BoardPage() {
       (await api.get<Paged<Sprint>>(`/projects/${project!.id}/sprints`)).data.items,
     enabled: !!project,
   });
+  const { data: members } = useQuery({
+    queryKey: ['members', project?.id],
+    queryFn: async () =>
+      (await api.get<{ items: ProjectMember[] }>(`/projects/${project!.id}/members`)).data.items,
+    enabled: !!project,
+  });
+  const { data: labels } = useQuery({
+    queryKey: ['labels', project?.id],
+    queryFn: async () =>
+      (await api.get<{ items: Label[] }>(`/projects/${project!.id}/labels`)).data.items,
+    enabled: !!project,
+  });
   const activeSprint = useMemo(() => sprints?.find((s) => s.status === 'active'), [sprints]);
 
   // local mirror so drag-and-drop is instant
@@ -63,30 +83,59 @@ export default function BoardPage() {
     setColumns(data?.columns ?? []);
   }, [data]);
 
-  // Filtered view (filters affect display only — we still reorder against the full set).
+  // Resolve dynamic targets ("active sprint", "me") into ids once per render
+  // so the filter loop below stays a pure predicate match.
+  const wantSprintId =
+    filters.sprint === 'all'
+      ? undefined
+      : filters.sprint === 'active'
+        ? (activeSprint?.id ?? null)
+        : filters.sprint === 'none'
+          ? null
+          : filters.sprint;
+  const wantAssigneeId =
+    filters.assignee === 'all'
+      ? undefined
+      : filters.assignee === 'me'
+        ? (currentUserId ?? null)
+        : filters.assignee === 'none'
+          ? null
+          : filters.assignee;
+  const wantEpicId =
+    filters.epic === 'all' ? undefined : filters.epic === 'none' ? null : filters.epic;
+  const searchLower = filters.search.trim().toLowerCase();
+
   const filteredColumns = useMemo(() => {
     return columns.map((c) => ({
       ...c,
       issues: c.issues.filter((i) => {
-        // Hide sub-issues from the main board
+        // Hide sub-issues from the main board — they live under their parent.
         if (i.parent_id) return false;
 
-        // Epic filter
-        if (epicFilter === 'none' && i.epic_id) return false;
-        if (epicFilter !== 'all' && epicFilter !== 'none' && i.epic_id !== epicFilter) return false;
-        // Sprint filter — board issues don't currently include sprint_id; we look it up.
-        if (sprintFilter === 'all') return true;
-        const wantSprintId =
-          sprintFilter === 'active'
-            ? (activeSprint?.id ?? null)
-            : sprintFilter === 'none'
-              ? null
-              : sprintFilter;
-        const issueSprintId = i.sprint_id ?? null;
-        return wantSprintId === null ? issueSprintId === null : issueSprintId === wantSprintId;
+        if (wantEpicId !== undefined && (i.epic_id ?? null) !== wantEpicId) return false;
+        if (wantSprintId !== undefined && (i.sprint_id ?? null) !== wantSprintId) return false;
+        if (wantAssigneeId !== undefined && (i.assignee_id ?? null) !== wantAssigneeId)
+          return false;
+        if (filters.priority !== 'all' && i.priority !== filters.priority) return false;
+        if (filters.label !== 'all' && !i.labels.some((l) => l.id === filters.label)) return false;
+        if (searchLower && !i.title.toLowerCase().includes(searchLower)) return false;
+        return true;
       }),
     }));
-  }, [columns, epicFilter, sprintFilter, activeSprint]);
+  }, [
+    columns,
+    wantEpicId,
+    wantSprintId,
+    wantAssigneeId,
+    filters.priority,
+    filters.label,
+    searchLower,
+  ]);
+
+  const visibleCount = useMemo(
+    () => filteredColumns.reduce((n, c) => n + c.issues.length, 0),
+    [filteredColumns],
+  );
 
   const reorder = useMutation({
     mutationFn: async (items: { id: string; columnId: string; position: number }[]) =>
@@ -162,65 +211,33 @@ export default function BoardPage() {
     return <div className="p-8 mono text-text-muted">loading board…</div>;
   }
 
-  const filtersActive = epicFilter !== 'all' || sprintFilter !== 'all';
+  const filtersActive =
+    visibleCount !== columns.reduce((n, c) => n + c.issues.filter((i) => !i.parent_id).length, 0);
 
   return (
     <div className="h-screen flex flex-col">
-      <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4 flex-wrap">
+      {/* Header: title + new-issue CTA */}
+      <div className="px-6 pt-5 pb-3 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <p className="mono text-xs uppercase tracking-widest text-text-dim">// board</p>
           <h1 className="mono text-xl">{project.name}</h1>
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <select
-            className="input mono text-xs py-1.5"
-            value={epicFilter}
-            onChange={(e) => setEpicFilter(e.target.value as EpicFilter)}
-            title="filter by epic"
-          >
-            <option value="all">epic: all</option>
-            <option value="none">epic: none</option>
-            {(epics ?? []).map((ep) => (
-              <option key={ep.id} value={ep.id}>
-                epic: {ep.title}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input mono text-xs py-1.5"
-            value={sprintFilter}
-            onChange={(e) => setSprintFilter(e.target.value as SprintFilter)}
-            title="filter by sprint"
-          >
-            <option value="all">sprint: all</option>
-            <option value="active" disabled={!activeSprint}>
-              sprint: active{activeSprint ? ` (${activeSprint.name})` : ' — none'}
-            </option>
-            <option value="none">sprint: none</option>
-            {(sprints ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                sprint: {s.name}
-                {s.status !== 'planned' ? ` · ${s.status}` : ''}
-              </option>
-            ))}
-          </select>
-          {filtersActive && (
-            <button
-              onClick={() => {
-                setEpicFilter('all');
-                setSprintFilter('all');
-              }}
-              className="btn-ghost text-xs"
-            >
-              clear
-            </button>
-          )}
-          <button onClick={() => setOpenCreate(true)} className="btn-primary">
-            + new issue
-          </button>
-        </div>
+        <button onClick={() => setOpenCreate(true)} className="btn-primary">
+          + new issue
+        </button>
       </div>
+
+      {/* Filter bar (separate row so it stays compact across breakpoints) */}
+      <BoardFilterBar
+        filters={filters}
+        onChange={setFilters}
+        epics={epics}
+        sprints={sprints}
+        members={members}
+        labels={labels}
+        activeSprint={activeSprint}
+        visibleCount={filtersActive ? visibleCount : undefined}
+      />
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="flex-1 overflow-x-auto overflow-y-hidden">
@@ -231,7 +248,11 @@ export default function BoardPage() {
                 items={col.issues.map((i) => i.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <KanbanColumn column={col} onIssueClick={(id) => setOpenIssueId(id)} />
+                <KanbanColumn
+                  column={col}
+                  filtersActive={filtersActive}
+                  onIssueClick={(id) => setOpenIssueId(id)}
+                />
               </SortableContext>
             ))}
           </div>
@@ -243,12 +264,12 @@ export default function BoardPage() {
         <CreateIssueModal
           projectId={project.id}
           firstColumnId={columns[0]?.id}
-          defaultEpicId={epicFilter !== 'all' && epicFilter !== 'none' ? epicFilter : null}
+          defaultEpicId={filters.epic !== 'all' && filters.epic !== 'none' ? filters.epic : null}
           defaultSprintId={
-            sprintFilter === 'active'
+            filters.sprint === 'active'
               ? (activeSprint?.id ?? null)
-              : sprintFilter !== 'all' && sprintFilter !== 'none'
-                ? sprintFilter
+              : filters.sprint !== 'all' && filters.sprint !== 'none'
+                ? filters.sprint
                 : null
           }
           onClose={() => setOpenCreate(false)}

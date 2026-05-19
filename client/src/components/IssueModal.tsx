@@ -16,6 +16,8 @@ import { IssueActivity } from './IssueActivity';
 import { IssueLabels } from './IssueLabels';
 import { CreateIssueModal } from './CreateIssueModal';
 import { MarkdownToolbar } from './MarkdownToolbar';
+import { AssigneePicker } from './AssigneePicker';
+import type { ProjectMember } from '../types';
 
 interface Props {
   issueId: string;
@@ -83,6 +85,14 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
     queryKey: ['board', issue?.projectId],
     queryFn: async () =>
       (await api.get<{ columns: BoardColumn[] }>(`/projects/${issue!.projectId}/board`)).data,
+    enabled: !!issue?.projectId,
+  });
+
+  const { data: members } = useQuery({
+    queryKey: ['members', issue?.projectId],
+    queryFn: async () =>
+      (await api.get<{ items: ProjectMember[] }>(`/projects/${issue!.projectId}/members`)).data
+        .items,
     enabled: !!issue?.projectId,
   });
 
@@ -414,6 +424,18 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
                           </div>
                         </Field>
                       )}
+
+                      <Field label="Assignee">
+                        <AssigneePicker
+                          value={issue.assigneeId}
+                          members={members}
+                          currentUserId={currentUserId}
+                          onChange={(next) =>
+                            // null → clear (empty-Guid sentinel); id → assign.
+                            patch({ assigneeId: next === null ? EMPTY_GUID : next })
+                          }
+                        />
+                      </Field>
 
                       <Field label="Epic">
                         <select

@@ -8,6 +8,7 @@ import { BurndownChart } from '../components/BurndownChart';
 import { VelocityChart } from '../components/VelocityChart';
 import { SprintModal } from '../components/SprintModal';
 import { CreateIssueModal } from '../components/CreateIssueModal';
+import { Avatar } from '../components/Avatar';
 
 interface Ctx {
   project?: Project;
@@ -162,8 +163,9 @@ export default function SprintDetailPage() {
         </div>
         <div className="border border-border">
           <div className="grid grid-cols-12 px-4 py-2 mono text-xs uppercase tracking-widest text-text-dim border-b border-border bg-bg-subtle">
-            <div className="col-span-6">title</div>
-            <div className="col-span-2">priority</div>
+            <div className="col-span-5">title</div>
+            <div className="col-span-2">assignee</div>
+            <div className="col-span-1">priority</div>
             <div className="col-span-2">column</div>
             <div className="col-span-1 text-right">pts</div>
             <div className="col-span-1 text-right">status</div>
@@ -178,7 +180,7 @@ export default function SprintDetailPage() {
                 key={i.id}
                 className="grid grid-cols-12 px-4 py-2 items-center border-t border-border"
               >
-                <div className="col-span-6 truncate flex items-center gap-2">
+                <div className="col-span-5 truncate flex items-center gap-2">
                   {i.epic_color && (
                     <span
                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -187,7 +189,18 @@ export default function SprintDetailPage() {
                   )}
                   <span className="truncate">{i.title}</span>
                 </div>
-                <div className="col-span-2 mono text-xs uppercase">{i.priority}</div>
+                <div className="col-span-2 flex items-center gap-2 min-w-0">
+                  <Avatar
+                    id={i.assignee_id}
+                    name={i.assignee_name}
+                    avatarUrl={i.assignee_avatar_url}
+                    size="sm"
+                  />
+                  <span className="mono text-xs text-text-muted truncate">
+                    {i.assignee_name ?? 'unassigned'}
+                  </span>
+                </div>
+                <div className="col-span-1 mono text-xs uppercase">{i.priority}</div>
                 <div className="col-span-2 mono text-xs text-text-muted">
                   {i.column_name ?? '—'}
                 </div>
