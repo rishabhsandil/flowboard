@@ -292,6 +292,21 @@ CREATE INDEX IF NOT EXISTS idx_activities_issue_id   ON activities(issue_id, cre
 CREATE INDEX IF NOT EXISTS idx_activities_project_id ON activities(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activities_actor_id   ON activities(actor_id);
 
+-- ---------- PASSWORD RESET TOKENS ----------
+-- Single-use, short-lived tokens for the forgot-password flow. We only ever
+-- persist the SHA-256 hash of the token (never plaintext) so a DB leak does
+-- not let an attacker hijack outstanding reset links. `used_at` is set the
+-- first time the token is redeemed and re-use is rejected.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  token_hash   TEXT PRIMARY KEY,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at   TIMESTAMPTZ NOT NULL,
+  used_at      TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id    ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+
 -- ---------- BOARD SNAPSHOTS (Cumulative Flow Diagram) ----------
 -- One row per (project, column, calendar day). Upserted each time the CFD
 -- endpoint is called, so the chart accumulates data automatically over time.

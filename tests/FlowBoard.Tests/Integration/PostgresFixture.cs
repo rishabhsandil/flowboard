@@ -47,8 +47,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         await c.ExecuteAsync(@"
             TRUNCATE TABLE
                 activities, mentions, issue_labels, labels, comments,
-                refresh_tokens, issues, sprints, epics, columns, boards,
-                project_members, projects, users
+                refresh_tokens, password_reset_tokens, issues, sprints,
+                epics, columns, boards, project_members, projects, users
             RESTART IDENTITY CASCADE;");
     }
 

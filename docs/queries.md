@@ -228,3 +228,59 @@ WHERE project_id = @ProjectId
   AND snapped_at >= CURRENT_DATE - (@Days::int - 1)
 ORDER BY snapped_at, column_name;
 ```
+
+---
+
+## 8. Password reset — issue + redeem
+
+**Where they're used:**
+`POST /api/auth/forgot` inserts a hash; `POST /api/auth/reset` redeems it
+(inside a transaction with `users.UPDATE` and
+`RefreshTokenQueries.RevokeAllForUser`).
+
+**Why this shape:**
+- The PK is `token_hash`, not the raw token — only the SHA-256 hex of the
+  random 32-byte token ever lands in the DB. A DB read alone cannot let an
+  attacker redeem outstanding links.
+- `MarkUsed` includes `used_at IS NULL` in the WHERE so a concurrent
+  second redemption affects zero rows; the controller branches on the row
+  count to detect the race and return `invalid_reset_token`.
+- `InvalidateAllForUser` runs in two places: (1) **before** issuing a new
+  token in `/auth/forgot` so a resend invalidates any prior outstanding
+  links — only the most recent link in the user's inbox is redeemable;
+  (2) **after** a successful reset so a parallel leaked link can't be
+  redeemed once the password has changed.
+- `MostRecentCreatedAtForUser` powers the per-email cooldown in
+  `/auth/forgot` — if the most recent issuance is within
+  `Forgot:PerEmailCooldownSeconds`, the controller silently drops the new
+  request (still 200, no enumeration leak).
+- `DeleteStaleRows` is run on a schedule by `PasswordResetCleanupService`
+  with `@Cutoff = NOW() - retention`. Bounded retention prevents the
+  table from growing forever while keeping recently-redeemed rows around
+  briefly for log correlation.
+
+```sql
+-- Insert
+INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+VALUES (@TokenHash, @UserId, @ExpiresAt);
+
+-- Mark used (idempotent guard)
+UPDATE password_reset_tokens
+SET used_at = NOW()
+WHERE token_hash = @TokenHash AND used_at IS NULL;
+
+-- Invalidate every outstanding reset link for the user
+UPDATE password_reset_tokens
+SET used_at = NOW()
+WHERE user_id = @UserId AND used_at IS NULL;
+
+-- Per-email cooldown lookup
+SELECT MAX(created_at)
+FROM password_reset_tokens
+WHERE user_id = @UserId;
+
+-- Periodic cleanup
+DELETE FROM password_reset_tokens
+WHERE (used_at IS NOT NULL OR expires_at < NOW())
+  AND created_at < @Cutoff;
+```

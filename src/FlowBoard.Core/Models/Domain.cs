@@ -176,6 +176,15 @@ public record RefreshTokenRow(
     Guid? ReplacedBy
 );
 
+/// <summary>Row from password_reset_tokens. UsedAt null = still redeemable.</summary>
+public record PasswordResetTokenRow(
+    string TokenHash,
+    Guid UserId,
+    DateTime ExpiresAt,
+    DateTime? UsedAt,
+    DateTime CreatedAt
+);
+
 // ---------- COMMENTS ----------
 public record Comment(
     Guid Id,

@@ -159,4 +159,32 @@ public class QueryShapeTests
         Assert.Contains("@ParentId", IssueQueries.ChildrenByParent);
         Assert.Contains("parent_id = @ParentId", IssueQueries.ChildrenByParent);
     }
+
+    // ---- Password reset tokens ----
+
+    [Fact]
+    public void PasswordResetTokenQueries_Insert_StoresHashAndExpiry()
+    {
+        // Plaintext tokens must never hit the DB — Insert only takes a hash.
+        Assert.Contains("token_hash", PasswordResetTokenQueries.Insert);
+        Assert.Contains("@TokenHash", PasswordResetTokenQueries.Insert);
+        Assert.Contains("@UserId",    PasswordResetTokenQueries.Insert);
+        Assert.Contains("@ExpiresAt", PasswordResetTokenQueries.Insert);
+    }
+
+    [Fact]
+    public void PasswordResetTokenQueries_MarkUsed_GuardsAgainstReuse()
+    {
+        // Idempotency: marking an already-used token affects zero rows so the
+        // controller can detect lost races and reject the redemption.
+        Assert.Contains("used_at IS NULL", PasswordResetTokenQueries.MarkUsed);
+        Assert.Contains("@TokenHash",      PasswordResetTokenQueries.MarkUsed);
+    }
+
+    [Fact]
+    public void PasswordResetTokenQueries_InvalidateAllForUser_IsScoped()
+    {
+        Assert.Contains("@UserId",         PasswordResetTokenQueries.InvalidateAllForUser);
+        Assert.Contains("used_at IS NULL", PasswordResetTokenQueries.InvalidateAllForUser);
+    }
 }

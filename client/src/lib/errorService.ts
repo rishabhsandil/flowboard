@@ -15,6 +15,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   member_not_found: 'that user is not a member of this project',
   last_owner: "can't remove the last owner — promote someone else first",
   internal_error: 'something went wrong on the server — please try again',
+  invalid_reset_token: 'this reset link is invalid or has expired — request a new one',
 };
 
 export function humanizeError(code: string): string {

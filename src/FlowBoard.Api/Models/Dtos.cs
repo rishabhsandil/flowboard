@@ -45,6 +45,19 @@ public record ChangePasswordRequest(
     [Required, StringLength(100, MinimumLength = 8)] string NewPassword
 );
 
+// Forgot-password kickoff. Always returns 200 to avoid revealing whether
+// the email is registered (user enumeration defence).
+public record ForgotPasswordRequest(
+    [Required, EmailAddress, StringLength(254)] string Email
+);
+
+// Reset redemption. `Token` is the raw value the user pasted from the email;
+// it is hashed server-side before looking up `password_reset_tokens`.
+public record ResetPasswordRequest(
+    [Required, StringLength(200, MinimumLength = 16)] string Token,
+    [Required, StringLength(100, MinimumLength = 8)] string NewPassword
+);
+
 // ---------- Projects ----------
 public record CreateProjectRequest([Required, StringLength(80)] string Name, [StringLength(500)] string? Description);
 public record UpdateProjectRequest([StringLength(80)] string? Name, [StringLength(500)] string? Description);

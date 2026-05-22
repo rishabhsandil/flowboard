@@ -298,10 +298,29 @@ implemented. They're now standards: don't regress them.
   inject `ILogger<T>` and let Serilog handle output.
 - **HTTPS redirect + HSTS** enabled when `!IsDevelopment()`. Railway
   terminates TLS so the redirect is mostly a defence-in-depth header.
+- **Forgot / reset password flow** with hardened side-channel posture.
+  `POST /auth/forgot` is always 200 (no enumeration via status), real
+  work runs in a background `Task.Run` so latency is constant across
+  known/unknown emails, resends invalidate prior outstanding tokens,
+  and a per-email cooldown (`Forgot:PerEmailCooldownSeconds`) silently
+  drops rapid retries. Token mail goes through `IEmailSender`
+  (`LogEmailSender` in dev/tests, `ResendEmailSender` in prod — switch
+  via `Email:Provider`). Dev-token echo in the HTTP response is gated
+  behind `Forgot:EchoTokenInResponse` AND `IsDevelopment()`, so a
+  misconfigured prod with `ASPNETCORE_ENVIRONMENT=Development` does not
+  leak tokens. `POST /auth/reset` runs the full rotation inside a
+  transaction, logs distinct WARN lines per rejection reason for token-
+  fishing telemetry, and fires a post-reset notification email through
+  the same `IEmailSender` so the account holder is alerted. The
+  `PasswordResetCleanupService` background sweep deletes used / expired
+  rows older than the configured retention window. The `/reset` client
+  page snapshots the URL token on mount and `replaceState`s the bar
+  clean to defeat Referer leakage.
 
 ## F. Still out-of-scope
 
-- Email verification + password reset flow.
+- Email verification flow (the password reset flow IS implemented — see
+  section E).
 - 2FA / MFA.
 - WebSocket/SSE for live board updates.
 - Distributed rate limiting (current limiter is per-instance memory).

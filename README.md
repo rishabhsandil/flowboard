@@ -41,6 +41,7 @@ FlowBoard is a ZenHub-inspired project management tool: a fast Kanban board with
 - Project member invitations + role management (owner / member) with last-owner protection
 - Owner-only **delete project** under **Settings → General** with a type-the-word-`delete` confirmation; cascades to every board / issue / epic / sprint / comment / activity row
 - User profile page (name + avatar URL) with current-password-gated password change that revokes other refresh tokens
+- Forgot / reset password flow — opaque `/auth/forgot` (always 200, no user enumeration; real work runs in a background task so response time can't distinguish known vs unknown emails) issues a single-use SHA-256-hashed token (1 h TTL) and dispatches it through a pluggable `IEmailSender` (log in dev/tests, Resend HTTP API in prod). Resends invalidate prior outstanding tokens and honour a per-email cooldown. `/auth/reset` rotates the password, revokes every outstanding refresh token, and fires a post-reset notification email so the account holder is alerted if a takeover just occurred. A periodic background sweep prunes stale token rows.
 
 ### Settings & UX
 - Project labels managed under **Settings → Labels**; legacy `/labels` URL redirects

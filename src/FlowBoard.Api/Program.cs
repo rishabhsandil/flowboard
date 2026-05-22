@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using FlowBoard.Api.Auth;
+using FlowBoard.Api.Email;
 using FlowBoard.Api.Middleware;
 using FlowBoard.Core.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -64,6 +65,8 @@ builder.Services.AddSingleton<DbConnectionFactory>();
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddSingleton<ProjectAuthorizer>();
 builder.Services.AddSingleton<FlowBoard.Api.Activity.ActivityLogger>();
+builder.Services.AddFlowBoardEmail(builder.Configuration);
+builder.Services.AddHostedService<PasswordResetCleanupService>();
 
 // JWT Auth
 var jwtSecret = ResolveSecret(
@@ -154,8 +157,11 @@ app.UseSerilogRequestLogging(o =>
     };
 });
 
-// Global exception handler — converts unhandled exceptions to a sanitized JSON
-// envelope and prevents stack-trace leakage in production.
+// Global exception handler — logs the full exception server-side and returns a
+// sanitized envelope to the client. Stack traces / inner messages NEVER leak
+// across the wire (coding-standard A8); the correlation id is the only thing
+// the user can quote when reporting an incident, and the operator looks the
+// rest up in the structured logs.
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async ctx =>
@@ -166,15 +172,14 @@ app.UseExceptionHandler(errorApp =>
         if (feature is not null)
             logger.LogError(feature.Error, "Unhandled request exception {Path}", ctx.Request.Path);
 
-        ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        ctx.Response.StatusCode  = StatusCodes.Status500InternalServerError;
         ctx.Response.ContentType = "application/json";
-        
-        var errorMsg = feature?.Error?.Message ?? "internal_error";
-        var stackTrace = feature?.Error?.StackTrace;
-        
-        await ctx.Response.WriteAsJsonAsync(new { 
-            error = errorMsg,
-            stackTrace = stackTrace
+
+        var correlationId = ctx.Items[FlowBoard.Api.Middleware.CorrelationIdMiddleware.ItemKey] as string;
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            error = "internal_error",
+            correlationId,
         });
     });
 });

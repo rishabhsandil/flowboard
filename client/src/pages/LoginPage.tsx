@@ -61,6 +61,11 @@ export default function LoginPage() {
           register
         </Link>
       </p>
+      <p className="mt-2 text-sm text-text-muted">
+        <Link to="/forgot" className="text-accent hover:underline">
+          forgot password?
+        </Link>
+      </p>
     </AuthShell>
   );
 }
