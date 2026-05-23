@@ -60,7 +60,6 @@ function describe(row: ActivityRow): string {
       return `created this issue${p?.title ? ` — "${p.title}"` : ''}`;
     case 'issue_updated': {
       const fieldLabels: Record<string, string> = {
-        columnId: 'board column',
         epicId: 'epic',
         sprintId: 'sprint',
         storyPoints: 'story points',
@@ -71,6 +70,15 @@ function describe(row: ActivityRow): string {
         ?.map((c) => fieldLabels[c.field] ?? c.field)
         .join(', ');
       return fields ? `updated ${fields}` : 'updated this issue';
+    }
+    case 'issue_moved': {
+      const from =
+        (p?.fromColumnName as string | undefined) ??
+        (p?.fromColumnId ? String(p.fromColumnId).slice(0, 8) : 'none');
+      const to =
+        (p?.toColumnName as string | undefined) ??
+        (p?.toColumnId ? String(p.toColumnId).slice(0, 8) : 'none');
+      return `moved this issue: ${from} → ${to}`;
     }
     case 'issue_closed':
       return 'closed this issue';

@@ -126,6 +126,12 @@ public record BoardColumnRow(
     string IssuesJson
 );
 
+/// <summary>(issue id, current column id) pair used by the move-audit path.</summary>
+public record IssueColumnRow(Guid Id, Guid? ColumnId);
+
+/// <summary>(column id, display name) lookup row used by the move-audit path.</summary>
+public record ColumnNameRow(Guid Id, string Name);
+
 /// <summary>
 /// Row shape for the project-wide issue list. Joins in the column / epic /
 /// sprint / assignee names so the table renders without N+1 lookups, and

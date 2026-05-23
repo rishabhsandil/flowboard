@@ -92,6 +92,14 @@ public static class ProjectQueries
         SELECT id, board_id, name, position, is_done, created_at
         FROM columns WHERE board_id = @BoardId ORDER BY position;";
 
+    /// <summary>
+    /// Resolves a set of column ids to their display names. Used by the
+    /// issue-move audit log so the activity payload carries human-readable
+    /// from/to column names alongside the ids.
+    /// </summary>
+    public const string GetColumnNamesByIds = @"
+        SELECT id, name FROM columns WHERE id = ANY(@Ids::uuid[]);";
+
     public const string InsertColumn = @"
         INSERT INTO columns (board_id, name, position, is_done)
         VALUES (

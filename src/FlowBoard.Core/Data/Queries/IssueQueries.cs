@@ -133,6 +133,16 @@ public static class IssueQueries
         WHERE i.id = v.id;";
 
     /// <summary>
+    /// Returns (id, column_id) pairs for the given issue ids. Used by
+    /// <c>IssuesController.Reorder</c> to snapshot the pre-update column
+    /// of each row so column-change moves can be audited.
+    /// </summary>
+    public const string GetColumnIdsByIds = @"
+        SELECT id, column_id
+        FROM issues
+        WHERE id = ANY(@Ids::uuid[]);";
+
+    /// <summary>
     /// Project-scoped issue list with optional filters. Every filter
     /// parameter follows the <c>@X IS NULL OR ...</c> pattern so a single
     /// query handles all combinations without string concatenation. Sentinel

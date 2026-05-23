@@ -14,6 +14,7 @@ const PAGE_SIZE = 50;
 const KNOWN_TYPES = [
   'issue_created',
   'issue_updated',
+  'issue_moved',
   'issue_closed',
   'issue_reopened',
   'issue_deleted',
@@ -306,9 +307,17 @@ function describe(
   switch (row.type) {
     case 'issue_created':
       return textOnly(`created an issue${p?.title ? ` — "${p.title}"` : ''}`);
+    case 'issue_moved': {
+      const from =
+        (p?.fromColumnName as string | undefined) ??
+        (p?.fromColumnId ? String(p.fromColumnId).slice(0, 8) : 'none');
+      const to =
+        (p?.toColumnName as string | undefined) ??
+        (p?.toColumnId ? String(p.toColumnId).slice(0, 8) : 'none');
+      return { text: `moved an issue: ${from} → ${to}` };
+    }
     case 'issue_updated': {
       const fieldLabels: Record<string, string> = {
-        columnId: 'board column',
         epicId: 'epic',
         sprintId: 'sprint',
         storyPoints: 'story points',

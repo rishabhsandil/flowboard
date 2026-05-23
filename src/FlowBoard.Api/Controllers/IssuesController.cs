@@ -183,10 +183,18 @@ public class IssuesController : ControllerBase
         if (before.Description != issue.Description) changes.Add(new { field = "description" });
         if (before.Priority    != issue.Priority)    changes.Add(new { field = "priority",    from = before.Priority,    to = issue.Priority });
         if (before.StoryPoints != issue.StoryPoints) changes.Add(new { field = "storyPoints", from = before.StoryPoints, to = issue.StoryPoints });
-        if (before.ColumnId    != issue.ColumnId)    changes.Add(new { field = "columnId",    from = before.ColumnId,    to = issue.ColumnId });
         if (before.EpicId      != issue.EpicId)      changes.Add(new { field = "epicId",      from = before.EpicId,      to = issue.EpicId });
         if (before.SprintId    != issue.SprintId)    changes.Add(new { field = "sprintId",    from = before.SprintId,    to = issue.SprintId });
         if (before.AssigneeId  != issue.AssigneeId)  changes.Add(new { field = "assigneeId",  from = before.AssigneeId,  to = issue.AssigneeId });
+
+        // Column moves get their own event type — the board is the UI users
+        // see most, and a dedicated `issue_moved` row is easier to filter on
+        // and renders distinctly in the activity feed.
+        if (before.ColumnId != issue.ColumnId)
+        {
+            await LogIssueMovedAsync(
+                c, issue.ProjectId, issue.Id, actor, before.ColumnId, issue.ColumnId);
+        }
 
         // Treat close/reopen as their own event types (more useful in the UI).
         var wasClosed = before.ClosedAt.HasValue;
@@ -240,11 +248,64 @@ public class IssuesController : ControllerBase
         var positions = req.Items.Select(x => x.Position).ToArray();
 
         using var c = _db.Create();
+
+        // Snapshot pre-update column for each issue so we can emit an
+        // `issue_moved` audit row per inter-column move. Position-only
+        // reorders within the same column are intentionally not logged —
+        // that's drag-sort noise, not a meaningful state change.
+        var beforeRows = await c.QueryAsync<IssueColumnRow>(
+            IssueQueries.GetColumnIdsByIds, new { Ids = ids });
+        var beforeColumns = beforeRows.ToDictionary(r => r.Id, r => r.ColumnId);
+
         await c.ExecuteAsync(IssueQueries.Reorder, new
         {
             Ids = ids, ColumnIds = columns, Positions = positions
         });
+
+        var moved = req.Items
+            .Where(it => beforeColumns.TryGetValue(it.Id, out var prev) && prev != it.ColumnId)
+            .ToList();
+
+        if (moved.Count > 0)
+        {
+            var actor = User.GetUserId();
+            foreach (var item in moved)
+            {
+                await LogIssueMovedAsync(
+                    c, projectId, item.Id, actor, beforeColumns[item.Id], item.ColumnId);
+            }
+        }
+
         return NoContent();
+    }
+
+    /// <summary>
+    /// Writes a single <c>issue_moved</c> activity row with both column ids
+    /// AND their display names. Names are resolved in a single round-trip so
+    /// the caller can fire-and-forget without worrying about N+1s.
+    /// </summary>
+    private async Task LogIssueMovedAsync(
+        IDbConnection c, Guid projectId, Guid issueId, Guid actorId,
+        Guid? fromColumnId, Guid? toColumnId)
+    {
+        var ids = new[] { fromColumnId, toColumnId }
+            .Where(g => g.HasValue).Select(g => g!.Value).Distinct().ToArray();
+
+        var names = ids.Length == 0
+            ? new Dictionary<Guid, string>()
+            : (await c.QueryAsync<ColumnNameRow>(ProjectQueries.GetColumnNamesByIds, new { Ids = ids }))
+                .ToDictionary(r => r.Id, r => r.Name);
+
+        string? Resolve(Guid? id) =>
+            id.HasValue && names.TryGetValue(id.Value, out var n) ? n : null;
+
+        await _activity.LogAsync(c, projectId, issueId, actorId, "issue_moved", new
+        {
+            fromColumnId,
+            toColumnId,
+            fromColumnName = Resolve(fromColumnId),
+            toColumnName   = Resolve(toColumnId),
+        });
     }
 
     /// <summary>Returns direct child issues of the given parent issue.</summary>
