@@ -103,7 +103,22 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddProblemDetails();
+// Surface the request correlation id on every framework-generated ProblemDetails
+// response (e.g. [ApiController] model-validation 400s, empty-body Unauthorized /
+// NotFound / BadRequest). Controllers that return the custom `{ error: code }`
+// envelope keep their existing shape — the response header X-Correlation-Id
+// remains the source of truth for those.
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = ctx =>
+    {
+        if (ctx.HttpContext.Items.TryGetValue(CorrelationIdMiddleware.ItemKey, out var id)
+            && id is string s)
+        {
+            ctx.ProblemDetails.Extensions["correlationId"] = s;
+        }
+    };
+});
 
 // Rate limiting — protects /auth/* against brute-force and credential stuffing.
 // Partition by client IP so one abusive caller doesn't lock out everyone behind
