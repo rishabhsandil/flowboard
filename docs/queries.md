@@ -284,3 +284,62 @@ DELETE FROM password_reset_tokens
 WHERE (used_at IS NOT NULL OR expires_at < NOW())
   AND created_at < @Cutoff;
 ```
+
+---
+
+## N. Issue dependencies — list both directions in one round-trip
+
+**Where it's used:** `GET /api/issues/{id}/dependencies`. Renders the "Linked issues" panel in the IssueModal.
+
+**Why this shape:**
+- A single `UNION ALL` returns every edge that touches the focus issue regardless of which side it sits on; the synthetic `direction` column ('outgoing' / 'incoming') lets the controller split outgoing vs incoming without a second query.
+- Joining `issues` and `columns` inline gives the chip its title and column name, so the UI never needs a per-link follow-up fetch.
+- Index on `depends_on_id` keeps the incoming half a seek instead of a scan.
+
+```sql
+SELECT
+  d.issue_id          AS IssueId,
+  d.depends_on_id     AS DependsOnId,
+  d.kind              AS Kind,
+  d.created_at        AS CreatedAt,
+  'outgoing'          AS Direction,
+  other.id            AS OtherId,
+  other.title         AS OtherTitle,
+  other.closed_at     AS OtherClosedAt,
+  col.name            AS OtherColumnName
+FROM issue_dependencies d
+JOIN issues  other ON other.id = d.depends_on_id
+LEFT JOIN columns col ON col.id = other.column_id
+WHERE d.issue_id = @IssueId
+UNION ALL
+SELECT
+  d.issue_id, d.depends_on_id, d.kind, d.created_at,
+  'incoming',
+  other.id, other.title, other.closed_at, col.name
+FROM issue_dependencies d
+JOIN issues  other ON other.id = d.issue_id
+LEFT JOIN columns col ON col.id = other.column_id
+WHERE d.depends_on_id = @IssueId
+ORDER BY Kind, CreatedAt ASC;
+```
+
+**Same-project guard** (run by the `POST` handler before insert — ensures a member can't link across projects even if they're a member of both):
+
+```sql
+SELECT 1
+FROM issues a
+JOIN issues b ON b.project_id = a.project_id
+WHERE a.id = @IssueId AND b.id = @DependsOnId
+LIMIT 1;
+```
+
+**1-hop reverse-blocks cycle guard** — catches the immediate A↔B case. Deeper cycles are tolerated (would require a recursive CTE walk to detect).
+
+```sql
+SELECT 1
+FROM issue_dependencies
+WHERE issue_id      = @DependsOnId
+  AND depends_on_id = @IssueId
+  AND kind          = 'blocks'
+LIMIT 1;
+```

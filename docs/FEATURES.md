@@ -91,6 +91,14 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [x] Profile page at `/profile` with name + avatar URL editing and a current-password-gated password change (revokes other refresh tokens)
 - [x] **Forgot / reset password flow** — `POST /api/auth/forgot {email}` always returns 200 (no enumeration). The real work (token mint, DB write, email dispatch) runs in a background task so the response time is identical for known and unknown emails (timing-channel defence). On a known email, prior outstanding tokens are invalidated and a 32-byte URL-safe token is minted (SHA-256 hash stored in `password_reset_tokens`, 1 h TTL). A per-email cooldown (`Forgot:PerEmailCooldownSeconds`, default 60s) silently drops repeated requests so the user's inbox can't be flooded. The plaintext link is delivered via a pluggable `IEmailSender` — `LogEmailSender` in dev/tests, `ResendEmailSender` in prod (set `Email:Provider=resend` + `Email:ResendApiKey`). A periodic `PasswordResetCleanupService` deletes used/expired rows older than the retention window. `POST /api/auth/reset {token, newPassword}` runs the rotation inside a transaction (validates token, marks it used, invalidates sibling tokens, updates the password, revokes every refresh token for the user), logs distinct WARN lines per rejection reason for token-fishing telemetry, then fires a post-reset notification email so the account holder is alerted if a takeover just occurred. Pages: `/forgot`, `/reset` with 8-char minimum-password rule + confirm field; `/reset` strips the token from the URL on mount and installs a `<meta name="referrer" content="no-referrer">` so the secret can't leak via Referer.
 
+### Issue dependencies
+- [x] `issue_dependencies` table — directed `(issue_id, depends_on_id, kind)` with `kind IN ('blocks','relates')`, `(issue_id, depends_on_id)` PK, self-link `CHECK`, `ON DELETE CASCADE` on either FK; reverse-lookup index on `depends_on_id`
+- [x] `GET /api/issues/{id}/dependencies` returns both directions (`outgoing` + `incoming`) in a single round-trip with the other issue's title / column / closed-at joined in
+- [x] `POST /api/issues/{id}/dependencies` with `{ dependsOnId, kind }` — guards self-link (400 `dependency_self`), cross-project (400 `dependency_project_mismatch`), and 1-hop reverse-blocks cycles (409 `dependency_cycle`); idempotent on duplicate add
+- [x] `DELETE /api/issues/{id}/dependencies/{dependsOnId}` — 204; activity row `dependency_removed`
+- [x] `GET /api/issues/{id}/dependencies/search?q=…` — title `ILIKE` over the same project, excludes the source issue
+- [x] **Jira-style UI panel** in IssueModal's main column below sub-issues: single "+ Add link" button opens a picker with a link-type dropdown (`blocks` / `is blocked by` / `relates to`) and debounced issue search; linked issues render as a flat list grouped by relationship label with one-click remove
+
 ### Comments + collaboration
 - [x] Comments tab on IssueModal (create / edit / delete / @mention)
 
@@ -112,7 +120,7 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [ ] Drag issue onto an epic to assign it
 - [ ] Bulk move issues between sprints
 - [x] Sprint planning view: backlog (left) ↔ sprint (right) drag handoff
-- [ ] Issue dependencies (blocked-by / blocking) graph
+- [x] Issue dependencies (blocked-by / blocking) graph
 - [ ] Sub-issues / parent issue
 - [ ] Estimate poker (multi-vote on points)
 

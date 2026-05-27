@@ -224,6 +224,41 @@ public record Label(
     DateTime CreatedAt
 );
 
+// ---------- ISSUE DEPENDENCIES ----------
+/// <summary>Bare row of issue_dependencies, used by the write-path RETURNING clauses.</summary>
+public record IssueDependency(
+    Guid IssueId,
+    Guid DependsOnId,
+    string Kind,
+    DateTime CreatedAt
+);
+
+/// <summary>
+/// Joined row returned by <c>IssueDependencyQueries.ListForIssue</c>. Pulls
+/// in the title / column / closed flag of the *other* issue so the UI can
+/// render a chip without an extra request. <c>Direction</c> is 'outgoing'
+/// when the row's source is the focus issue, 'incoming' otherwise.
+/// </summary>
+public record IssueDependencyRow(
+    Guid IssueId,
+    Guid DependsOnId,
+    string Kind,
+    DateTime CreatedAt,
+    string Direction,
+    Guid OtherId,
+    string OtherTitle,
+    DateTime? OtherClosedAt,
+    string? OtherColumnName
+);
+
+/// <summary>Small projection of an issue used by the dependency-picker autocomplete.</summary>
+public record IssuePickerRow(
+    Guid Id,
+    string Title,
+    DateTime? ClosedAt,
+    string? ColumnName
+);
+
 // ---------- ACTIVITY LOG ----------
 /// <summary>
 /// One row from the activity feed. <c>Payload</c> is the raw JSON string from

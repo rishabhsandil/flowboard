@@ -23,6 +23,7 @@ FlowBoard is a ZenHub-inspired project management tool: a fast Kanban board with
 - Bulk actions on issues: move to sprint, apply label, close, reopen, delete
 - Click any label chip on a card or row to deep-link into Issues filtered by that label
 - Sub-issues (parent/child relationship) with nesting on the issue modal
+- **Issue dependencies** — directed `blocks` / `relates` graph between issues in the same project, rendered in the IssueModal sidebar as "Blocks", "Blocked by", and "Related"; 1-hop reverse-blocks cycles are rejected and cross-project links are forbidden
 - Issue comments with `@name` mentions resolved against project members
 - Markdown rendering in issue descriptions and comments
 
@@ -190,6 +191,7 @@ The full annotated set is in [docs/queries.md](docs/queries.md).
 | `idx_sprints_project_id` | Sprint list + velocity |
 | `idx_epics_project_id` | Epic list |
 | `idx_board_snapshots_project_date` | CFD historical data lookup |
+| `idx_issue_dependencies_depends_on` | Reverse-direction (incoming) edge lookups for the IssueModal "blocked by" panel |
 
 ---
 
@@ -240,7 +242,6 @@ npx playwright test
 - Real-time board updates via SignalR
 - GitHub Issues sync (GitHub OAuth + REST)
 - Email notifications (assigned, mentioned, sprint starts)
-- Issue dependencies (blocked-by / blocking)
 - Saved board filters
 - Per-column WIP limits
 - Workflow rules (auto-close on column move, auto-assign on status change)

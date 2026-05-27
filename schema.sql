@@ -307,6 +307,24 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id    ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 
+-- ---------- ISSUE DEPENDENCIES ----------
+-- Directed link between two issues in the same project. `kind = 'blocks'`
+-- means @issue_id blocks @depends_on_id (so @depends_on_id is blocked by
+-- @issue_id); `kind = 'relates'` is a soft, undirected relationship and is
+-- only stored once (the GET endpoint exposes it via both directions).
+-- Self-links are forbidden by the CHECK; deletes of either issue cascade.
+CREATE TABLE IF NOT EXISTS issue_dependencies (
+  issue_id       UUID NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+  depends_on_id  UUID NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+  kind           TEXT NOT NULL CHECK (kind IN ('blocks','relates')),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (issue_id, depends_on_id),
+  CHECK (issue_id <> depends_on_id)
+);
+-- Reverse-lookup index so the "blocked by" / "incoming" query is also seek.
+CREATE INDEX IF NOT EXISTS idx_issue_dependencies_depends_on
+  ON issue_dependencies(depends_on_id);
+
 -- ---------- BOARD SNAPSHOTS (Cumulative Flow Diagram) ----------
 -- One row per (project, column, calendar day). Upserted each time the CFD
 -- endpoint is called, so the chart accumulates data automatically over time.

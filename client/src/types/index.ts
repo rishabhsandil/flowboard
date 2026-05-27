@@ -197,6 +197,30 @@ export interface ProjectMember {
   role: 'owner' | 'member';
 }
 
+// ---------- Issue dependencies ----------
+// Mirrors IssueDependencyRow on the backend. `direction` is 'outgoing' when
+// this issue is the source ("blocks the other"), 'incoming' when this issue
+// is the target ("is blocked by the other"). 'relates' edges appear in
+// whichever direction they were created; the UI shows them together.
+export type DependencyKind = 'blocks' | 'relates';
+export interface IssueDependency {
+  issueId: string;
+  dependsOnId: string;
+  kind: DependencyKind;
+  createdAt: string;
+  direction: 'outgoing' | 'incoming';
+  otherId: string;
+  otherTitle: string;
+  otherClosedAt: string | null;
+  otherColumnName: string | null;
+}
+export interface IssuePickerRow {
+  id: string;
+  title: string;
+  closedAt: string | null;
+  columnName: string | null;
+}
+
 // ---------- Cumulative Flow Diagram ----------
 export interface CfdPoint {
   day: string;

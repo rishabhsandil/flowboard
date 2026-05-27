@@ -6,9 +6,10 @@ namespace FlowBoard.Api.Models;
 // so invalid values are rejected at the API edge with a 400 instead of a 500.
 internal static class ValidationPatterns
 {
-    public const string Priority      = "^(low|medium|high|critical)$";
-    public const string SprintStatus  = "^(planned|active|completed)$";
-    public const string HexColor      = "^#[0-9a-fA-F]{6}$";
+    public const string Priority         = "^(low|medium|high|critical)$";
+    public const string SprintStatus     = "^(planned|active|completed)$";
+    public const string HexColor         = "^#[0-9a-fA-F]{6}$";
+    public const string DependencyKind   = "^(blocks|relates)$";
 }
 
 // ---------- Pagination ----------
@@ -159,3 +160,9 @@ public record UpdateLabelRequest(
     [RegularExpression(ValidationPatterns.HexColor)] string? Color
 );
 public record AttachLabelRequest([Required] Guid LabelId);
+
+// ---------- Issue dependencies ----------
+public record CreateIssueDependencyRequest(
+    [Required] Guid DependsOnId,
+    [RegularExpression(ValidationPatterns.DependencyKind)] string? Kind
+);

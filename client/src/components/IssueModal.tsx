@@ -14,6 +14,7 @@ import type { Paged } from '../types/api';
 import { IssueComments } from './IssueComments';
 import { IssueActivity } from './IssueActivity';
 import { IssueLabels } from './IssueLabels';
+import { IssueDependencies } from './IssueDependencies';
 import { CreateIssueModal } from './CreateIssueModal';
 import { MarkdownToolbar } from './MarkdownToolbar';
 import { AssigneePicker } from './AssigneePicker';
@@ -313,6 +314,14 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
                           <p className="mono text-xs text-text-dim">No sub-issues yet.</p>
                         </div>
                       )}
+                    </div>
+
+                    {/* Linked issues (blocks / blocked by / relates) */}
+                    <div>
+                      <IssueDependencies
+                        issueId={issue.id}
+                        onChange={() => setActivityKey((k) => k + 1)}
+                      />
                     </div>
 
                     {/* Activity / Comments Tabs */}
