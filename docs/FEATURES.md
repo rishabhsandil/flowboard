@@ -153,7 +153,7 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 
 ### UX polish
 - [x] Keyboard shortcut palette (`?` to open)
-- [x] Issue search across project (title `ILIKE`; full-text upgrade still open)
+- [x] Issue search across project — Postgres `tsvector` over title + description, weighted (title `A`, body `B`) so title hits rank higher, prefix matching via `to_tsquery('english', 'foo:* & bar:*')`, AND semantics across tokens; 1- or 2-char queries fall back to title ILIKE so very short probes still work. Garbage input (all symbols) returns zero rows rather than everything.
 - [ ] Saved board filters
 - [ ] Dark/light theme toggle (currently dark only)
 - [x] Markdown rendering in issue descriptions

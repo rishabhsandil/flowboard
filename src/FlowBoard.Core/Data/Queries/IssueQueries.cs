@@ -149,7 +149,22 @@ public static class IssueQueries
     /// for &quot;no sprint&quot; / &quot;no epic&quot; / &quot;no assignee&quot;
     /// is the empty UUID, mirroring the <see cref="Update"/> contract.
     /// Status: <c>'open'</c>, <c>'closed'</c>, or NULL for all.
-    /// Search is a case-insensitive substring match on title.
+    ///
+    /// Search has two modes wired into the same WHERE clause:
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <c>LENGTH(@Search) &lt; 3</c> → ILIKE substring on the title,
+    ///     so a one- or two-character probe still works.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <c>LENGTH(@Search) &gt;= 3</c> AND <c>@SearchTsQuery IS NOT NULL</c>
+    ///     → <c>search_vector @@ to_tsquery('english', @SearchTsQuery)</c>
+    ///     for stemmed, multi-word, title+description matching with prefix
+    ///     support (the controller pre-builds <c>@SearchTsQuery</c> via
+    ///     <c>FtsQuery.BuildPrefixTsQuery</c>).
+    ///   </description></item>
+    /// </list>
+    /// The GIN index <c>idx_issues_search_vector</c> backs the FTS path.
     /// </summary>
     public const string ListByProject = @"
         SELECT i.id, i.project_id, i.column_id, i.epic_id, i.sprint_id, i.assignee_id,
@@ -195,8 +210,24 @@ public static class IssueQueries
           AND (@ParentId IS NULL
                OR (@ParentId = '00000000-0000-0000-0000-000000000000' AND i.parent_id IS NULL)
                OR i.parent_id = @ParentId)
-          AND (@Search   IS NULL OR i.title ILIKE '%' || @Search || '%')
-        ORDER BY i.closed_at IS NULL DESC,
+          AND (
+               @Search IS NULL
+               OR (LENGTH(@Search) < 3
+                   AND i.title ILIKE '%' || @Search || '%')
+               OR (LENGTH(@Search) >= 3
+                   AND @SearchTsQuery IS NOT NULL
+                   AND i.search_vector @@ to_tsquery('english', @SearchTsQuery))
+              )
+        ORDER BY -- when an FTS query is active, push higher-ranked hits to the
+                 -- top so a title match beats a description match.
+                 CASE
+                   WHEN @Search IS NOT NULL
+                        AND LENGTH(@Search) >= 3
+                        AND @SearchTsQuery IS NOT NULL
+                   THEN ts_rank(i.search_vector, to_tsquery('english', @SearchTsQuery))
+                   ELSE 0
+                 END DESC,
+                 i.closed_at IS NULL DESC,
                  CASE i.priority
                    WHEN 'critical' THEN 0
                    WHEN 'high'     THEN 1
@@ -230,7 +261,14 @@ public static class IssueQueries
           AND (@ParentId IS NULL
                OR (@ParentId = '00000000-0000-0000-0000-000000000000' AND i.parent_id IS NULL)
                OR i.parent_id = @ParentId)
-          AND (@Search   IS NULL OR i.title ILIKE '%' || @Search || '%');";
+          AND (
+               @Search IS NULL
+               OR (LENGTH(@Search) < 3
+                   AND i.title ILIKE '%' || @Search || '%')
+               OR (LENGTH(@Search) >= 3
+                   AND @SearchTsQuery IS NOT NULL
+                   AND i.search_vector @@ to_tsquery('english', @SearchTsQuery))
+              );";
 
     /// <summary>
     /// Project members for the assignee picker on the issues list page.

@@ -307,6 +307,23 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id    ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 
+-- ---------- ISSUE FULL-TEXT SEARCH ----------
+-- Generated tsvector column over (title, description). Title carries weight
+-- 'A' so an exact title hit outranks a body hit when ts_rank is used. English
+-- stemmer is the lowest-friction choice for the current data set; switch to
+-- 'simple' or a custom dictionary if multilingual content shows up.
+-- Idempotent: the IF NOT EXISTS guard + DO-block-for-generated-column pattern
+-- lets re-running schema.sql against an existing DB be a no-op.
+DO $$ BEGIN
+  ALTER TABLE issues ADD COLUMN search_vector tsvector
+    GENERATED ALWAYS AS (
+      setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+      setweight(to_tsvector('english', coalesce(description, '')), 'B')
+    ) STORED;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS idx_issues_search_vector
+  ON issues USING GIN (search_vector);
+
 -- ---------- ISSUE DEPENDENCIES ----------
 -- Directed link between two issues in the same project. `kind = 'blocks'`
 -- means @issue_id blocks @depends_on_id (so @depends_on_id is blocked by

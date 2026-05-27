@@ -109,20 +109,27 @@ public class IssuesController : ControllerBase
         if (take is <= 0 or > 100) take = 50;
 
         var trimmedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        // Build the prefix-style tsquery once; SQL uses it only when the raw
+        // query is >= 3 chars. Pre-building in C# keeps the SQL parameterised
+        // and avoids quoting nightmares inside Postgres' tsquery parser.
+        var searchTsQuery = trimmedSearch is not null && trimmedSearch.Length >= 3
+            ? FlowBoard.Api.Search.FtsQuery.BuildPrefixTsQuery(trimmedSearch)
+            : null;
 
         var args = new
         {
-            ProjectId  = projectId,
-            Status     = status,
-            Priority   = priority,
-            EpicId     = epicId,
-            SprintId   = sprintId,
-            AssigneeId = assigneeId,
-            LabelId    = labelId,
-            ParentId   = parentId,
-            Search     = trimmedSearch,
-            Skip       = skip,
-            Take       = take,
+            ProjectId     = projectId,
+            Status        = status,
+            Priority      = priority,
+            EpicId        = epicId,
+            SprintId      = sprintId,
+            AssigneeId    = assigneeId,
+            LabelId       = labelId,
+            ParentId      = parentId,
+            Search        = trimmedSearch,
+            SearchTsQuery = searchTsQuery,
+            Skip          = skip,
+            Take          = take,
         };
 
         using var c = _db.Create();

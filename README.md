@@ -19,7 +19,7 @@ FlowBoard is a ZenHub-inspired project management tool: a fast Kanban board with
 
 ### Board & Issues
 - Kanban board with drag-and-drop (`@dnd-kit`) and optimistic UI
-- Project-wide issue list with status / priority / epic / sprint / assignee / label / title-search filters
+- Project-wide issue list with status / priority / epic / sprint / assignee / label / **full-text** search (Postgres `tsvector` over title + description with weighted ranking, prefix matching, English stemming; <3-char queries fall back to title ILIKE)
 - Bulk actions on issues: move to sprint, apply label, close, reopen, delete
 - Click any label chip on a card or row to deep-link into Issues filtered by that label
 - Sub-issues (parent/child relationship) with nesting on the issue modal
@@ -193,6 +193,7 @@ The full annotated set is in [docs/queries.md](docs/queries.md).
 | `idx_epics_project_id` | Epic list |
 | `idx_board_snapshots_project_date` | CFD historical data lookup |
 | `idx_issue_dependencies_depends_on` | Reverse-direction (incoming) edge lookups for the IssueModal "blocked by" panel |
+| `idx_issues_search_vector` (GIN) | Backs the issues-list full-text search (`search_vector @@ to_tsquery`) |
 
 ---
 

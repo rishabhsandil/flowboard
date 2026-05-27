@@ -287,6 +287,48 @@ WHERE (used_at IS NOT NULL OR expires_at < NOW())
 
 ---
 
+## M. Issue list — hybrid full-text + ILIKE search
+
+**Where it's used:** `GET /api/projects/{id}/issues?search=...` (the Issues page).
+
+**Why this shape:**
+- The `issues.search_vector` column is `GENERATED ALWAYS … STORED` from `setweight(to_tsvector('english', title), 'A') || setweight(to_tsvector('english', description), 'B')`. Title hits outrank body hits via `ts_rank` because of the weight delta.
+- Prefix matching (`:*` per token, AND-joined) lets "auth" match "authentication" without a separate trigram index. The query string is pre-built in C# (`FtsQuery.BuildPrefixTsQuery`) so the user input never reaches `to_tsquery`'s parser as-is.
+- One- and two-character probes fall back to `title ILIKE` because tsvector matching at sub-token length is unreliable.
+- A GIN index (`idx_issues_search_vector`) backs the FTS path.
+
+```sql
+AND (
+     @Search IS NULL
+     OR (LENGTH(@Search) < 3
+         AND i.title ILIKE '%' || @Search || '%')
+     OR (LENGTH(@Search) >= 3
+         AND @SearchTsQuery IS NOT NULL
+         AND i.search_vector @@ to_tsquery('english', @SearchTsQuery))
+    )
+ORDER BY CASE
+           WHEN @Search IS NOT NULL
+                AND LENGTH(@Search) >= 3
+                AND @SearchTsQuery IS NOT NULL
+           THEN ts_rank(i.search_vector, to_tsquery('english', @SearchTsQuery))
+           ELSE 0
+         END DESC,
+         /* …other tiebreakers (open-first, priority, recency)… */
+```
+
+**`@SearchTsQuery` construction** (C# side, `FtsQuery.BuildPrefixTsQuery`):
+
+```text
+input    → "Auth! login"
+cleaned  → "Auth  login"
+tokens   → ["Auth", "login"]
+output   → "auth:* & login:*"
+```
+
+Symbolic-only input (`"@@@"`) yields zero tokens → `@SearchTsQuery` is `null` and the FTS branch is skipped; the `@Search IS NULL` branch doesn't match either (it's not null, just unusable), so the result is empty — preferable to silently returning every row.
+
+---
+
 ## N. Issue dependencies — list both directions in one round-trip
 
 **Where it's used:** `GET /api/issues/{id}/dependencies`. Renders the "Linked issues" panel in the IssueModal.

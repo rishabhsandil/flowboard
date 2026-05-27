@@ -165,7 +165,7 @@ public class CommentsLabelsActivityQueryTests
         Assert.Contains("@SprintId IS NULL",   sql);
         Assert.Contains("@AssigneeId IS NULL", sql);
         Assert.Contains("@LabelId  IS NULL",   sql);
-        Assert.Contains("@Search   IS NULL",   sql);
+        Assert.Contains("@Search IS NULL",     sql);
         Assert.Contains("@ProjectId",          sql);
     }
 
