@@ -45,6 +45,9 @@ const priorities: Priority[] = ['low', 'medium', 'high', 'critical'];
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 
 export function IssueModal({ issueId, onClose, onChange }: Props) {
+  const [navStack, setNavStack] = useState<string[]>([issueId]);
+  const activeIssueId = navStack[navStack.length - 1];
+
   const [issue, setIssue] = useState<Issue | null>(null);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
@@ -56,17 +59,38 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
   const descTextareaRef = useRef<HTMLTextAreaElement>(null);
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const qc = useQueryClient();
-  useEscapeKey(onClose);
+  useEscapeKey(() => {
+    if (navStack.length > 1) navigateBack();
+    else onClose();
+  });
+
+  function navigateTo(id: string) {
+    setNavStack((s) => [...s, id]);
+    setIssue(null);
+    setDescEditing(false);
+    setPreviewing(false);
+    setAddingChild(false);
+    setTab('comments');
+  }
+
+  function navigateBack() {
+    setNavStack((s) => s.slice(0, -1));
+    setIssue(null);
+    setDescEditing(false);
+    setPreviewing(false);
+    setAddingChild(false);
+    setTab('comments');
+  }
 
   useEffect(() => {
     let cancelled = false;
-    api.get(`/issues/${issueId}`).then((r) => {
+    api.get(`/issues/${activeIssueId}`).then((r) => {
       if (!cancelled) setIssue(r.data.issue);
     });
     return () => {
       cancelled = true;
     };
-  }, [issueId]);
+  }, [activeIssueId]);
 
   // Once issue is loaded we know its projectId — fetch epics + sprints for the dropdowns.
   const { data: epics } = useQuery({
@@ -98,12 +122,12 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
   });
 
   // Sub-issues: direct children of this issue
-  const childrenKey = ['issue-children', issueId];
+  const childrenKey = ['issue-children', activeIssueId];
   const { data: children } = useQuery({
     queryKey: childrenKey,
     queryFn: async () =>
-      (await api.get<{ items: Issue[] }>(`/issues/${issueId}/children`)).data.items,
-    enabled: !!issueId,
+      (await api.get<{ items: Issue[] }>(`/issues/${activeIssueId}/children`)).data.items,
+    enabled: !!activeIssueId,
   });
 
   // Parent issue (minimal fetch — just title for the link)
@@ -164,6 +188,14 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0 bg-bg-soft/30">
                 <div className="flex items-center gap-3">
+                  {navStack.length > 1 && (
+                    <button
+                      onClick={navigateBack}
+                      className="btn-ghost mono text-xs px-2 py-1 hover:bg-bg-soft rounded flex items-center gap-1"
+                    >
+                      ← Back
+                    </button>
+                  )}
                   <p className="mono text-xs uppercase tracking-widest text-text-dim"></p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -291,7 +323,8 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
                           {(children ?? []).map((child) => (
                             <div
                               key={child.id}
-                              className="flex items-center gap-3 px-4 py-3 hover:bg-bg-soft/40 transition-colors"
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-bg-soft/40 transition-colors cursor-pointer"
+                              onClick={() => navigateTo(child.id)}
                             >
                               <span
                                 className={`w-2 h-2 rounded-full flex-shrink-0 ${

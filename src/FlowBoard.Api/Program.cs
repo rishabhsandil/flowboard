@@ -2,6 +2,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using FlowBoard.Api.Auth;
 using FlowBoard.Api.Email;
+using FlowBoard.Api.Hubs;
 using FlowBoard.Api.Middleware;
 using FlowBoard.Core.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -64,6 +65,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddSingleton<DbConnectionFactory>();
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddSingleton<ProjectAuthorizer>();
+builder.Services.AddSingleton<FlowBoard.Api.Hubs.IBoardEventPublisher, FlowBoard.Api.Hubs.SignalRBoardEventPublisher>();
 builder.Services.AddSingleton<FlowBoard.Api.Activity.ActivityLogger>();
 builder.Services.AddFlowBoardEmail(builder.Configuration);
 builder.Services.AddHostedService<PasswordResetCleanupService>();
@@ -87,8 +89,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+        // WebSocket clients cannot set the Authorization header, so SignalR
+        // sends the JWT via the `access_token` query string on /hubs/*. This
+        // hook lifts it into ctx.Token before validation runs.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                var accessToken = ctx.Request.Query["access_token"];
+                var path = ctx.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs"))
+                {
+                    ctx.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
 
 builder.Services.AddCors(options =>
 {
@@ -98,8 +118,22 @@ builder.Services.AddCors(options =>
                 "https://flowboard.vercel.app",
                 "http://localhost:5173"
             )
-            .WithHeaders("Content-Type", "Authorization", "X-Requested-With", "X-Correlation-Id")
-            .WithMethods("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS");
+            // `x-signalr-user-agent` is sent by the SignalR JS client on every
+            // negotiate / long-polling request; without it the preflight fails
+            // and the connection never opens. Coding-standard A11 still holds:
+            // explicit allowlist, no wildcards.
+            .WithHeaders(
+                "Content-Type",
+                "Authorization",
+                "X-Requested-With",
+                "X-Correlation-Id",
+                "x-signalr-user-agent")
+            .WithMethods("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
+            // SignalR's JavaScript client issues its negotiate/long-polling
+            // requests with `withCredentials: true`. Without this header the
+            // browser blocks them even though we authenticate via JWT in the
+            // query string, not cookies.
+            .AllowCredentials();
     });
 });
 
@@ -231,6 +265,7 @@ app.UseAuthorization();
 app.MapGet("/", () => Results.Redirect("/swagger"));
 app.MapGet("/api/health", () => Results.Ok(new { ok = true }));
 app.MapControllers();
+app.MapHub<BoardHub>("/hubs/board");
 
 app.Run();
 

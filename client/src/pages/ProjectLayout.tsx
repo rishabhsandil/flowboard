@@ -2,6 +2,7 @@ import { NavLink, Outlet, useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { useBoardSocket } from '../lib/useBoardSocket';
 import type { Project } from '../types';
 
 export default function ProjectLayout() {
@@ -14,6 +15,11 @@ export default function ProjectLayout() {
     queryFn: async () => (await api.get<{ project: Project }>(`/projects/${slug}`)).data.project,
     enabled: !!slug,
   });
+
+  // One SignalR subscription per visited project. The hook is a no-op until
+  // the project query resolves, and tears down when the user navigates to a
+  // different project (or leaves the project routes entirely).
+  useBoardSocket(project?.id);
 
   return (
     <div className="min-h-screen flex">

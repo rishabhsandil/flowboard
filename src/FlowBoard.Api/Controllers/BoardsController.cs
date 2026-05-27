@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dapper;
+using FlowBoard.Api.Activity;
 using FlowBoard.Api.Auth;
 using FlowBoard.Api.Models;
 using FlowBoard.Core.Data;
@@ -17,9 +18,10 @@ public class BoardsController : ControllerBase
 {
     private readonly DbConnectionFactory _db;
     private readonly ProjectAuthorizer _authz;
+    private readonly ActivityLogger _activity;
 
-    public BoardsController(DbConnectionFactory db, ProjectAuthorizer authz)
-    { _db = db; _authz = authz; }
+    public BoardsController(DbConnectionFactory db, ProjectAuthorizer authz, ActivityLogger activity)
+    { _db = db; _authz = authz; _activity = activity; }
 
     /// <summary>Returns the entire board (all columns + their issues) in one round-trip.</summary>
     [HttpGet("projects/{projectId:guid}/board")]
@@ -60,6 +62,10 @@ public class BoardsController : ControllerBase
 
         var col = await c.QuerySingleAsync<BoardColumn>(
             ProjectQueries.InsertColumn, new { BoardId = boardId.Value, req.Name, req.IsDone });
+        await _activity.LogAsync(c, projectId, null, User.GetUserId(), "column_created", new
+        {
+            columnId = col.Id, name = col.Name, isDone = col.IsDone, position = col.Position,
+        });
         return Created($"/api/columns/{col.Id}", new { column = col });
     }
 
@@ -70,6 +76,12 @@ public class BoardsController : ControllerBase
         using var c = _db.Create();
         var col = await c.QuerySingleAsync<BoardColumn>(
             ProjectQueries.RenameColumn, new { Id = id, req.Name, req.IsDone });
+        var projectId = await c.ExecuteScalarAsync<Guid>(
+            ProjectQueries.ColumnProjectId, new { ColumnId = id });
+        await _activity.LogAsync(c, projectId, null, User.GetUserId(), "column_updated", new
+        {
+            columnId = col.Id, name = col.Name, isDone = col.IsDone,
+        });
         return Ok(new { column = col });
     }
 
@@ -78,7 +90,14 @@ public class BoardsController : ControllerBase
     {
         if (!await AuthorizeColumn(id)) return Forbid();
         using var c = _db.Create();
+        // Resolve the project before the cascade wipes the column row.
+        var projectId = await c.ExecuteScalarAsync<Guid>(
+            ProjectQueries.ColumnProjectId, new { ColumnId = id });
         await c.ExecuteAsync(ProjectQueries.DeleteColumn, new { Id = id });
+        await _activity.LogAsync(c, projectId, null, User.GetUserId(), "column_deleted", new
+        {
+            columnId = id,
+        });
         return NoContent();
     }
 
@@ -91,6 +110,10 @@ public class BoardsController : ControllerBase
 
         using var c = _db.Create();
         await c.ExecuteAsync(ProjectQueries.ReorderColumns, new { req.Ids, req.Positions });
+        await _activity.LogAsync(c, projectId, null, User.GetUserId(), "columns_reordered", new
+        {
+            ids = req.Ids, positions = req.Positions,
+        });
         return NoContent();
     }
 

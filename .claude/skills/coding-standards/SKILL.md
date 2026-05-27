@@ -316,13 +316,30 @@ implemented. They're now standards: don't regress them.
   rows older than the configured retention window. The `/reset` client
   page snapshots the URL token on mount and `replaceState`s the bar
   clean to defeat Referer leakage.
+- **Real-time board updates via SignalR.** `BoardHub` at `/hubs/board`
+  with per-project groups (`project:{projectId}`). JWT bearer auth: the
+  REST API uses the `Authorization` header, the hub uses the same JWT
+  via `?access_token=…` on the WebSocket transport (lifted into
+  `ctx.Token` in the `JwtBearerEvents.OnMessageReceived` hook in
+  `Program.cs`). Membership is verified in `OnConnectedAsync`;
+  non-members throw `HubException` so the client's `StartAsync` /
+  `Closed` callback observes the rejection. Server-side publish is
+  routed through `ActivityLogger.LogAsync` — every audited insert
+  calls `IBoardEventPublisher.PublishAsync` after the row commits, so
+  **activities are the canonical event log**. Any new mutation that
+  wants real-time fan-out just needs to call `LogAsync` like the
+  existing controllers; never bypass it to publish directly.
+  React clients consume events via `useBoardSocket(projectId)` in
+  `client/src/lib/`, mounted from `ProjectLayout`. The dispatcher in
+  `cacheEffectsFor` maps event types to TanStack Query keys; unknown
+  types fall back to a project-wide refresh so new backend events are
+  never silently dropped by an out-of-date client.
 
 ## F. Still out-of-scope
 
 - Email verification flow (the password reset flow IS implemented — see
   section E).
 - 2FA / MFA.
-- WebSocket/SSE for live board updates.
 - Distributed rate limiting (current limiter is per-instance memory).
 - Test coverage target ≥60% (now ~106 tests across unit + functional;
   expand functional coverage to permissions on all controllers).

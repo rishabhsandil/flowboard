@@ -12,10 +12,10 @@ mapping, error handling, modal UX, query keys, and the empty-Guid sentinel.
 
 ## Stack
 
-- **API**: ASP.NET Core 10 (`net10.0`), C# 14, Dapper 2.1.66, Npgsql 9.0.2, BCrypt.Net-Next, JWT (access + refresh).
+- **API**: ASP.NET Core 10 (`net10.0`), C# 14, Dapper 2.1.66, Npgsql 9.0.2, BCrypt.Net-Next, JWT (access + refresh), SignalR (`/hubs/board`).
 - **DB**: Postgres 18 locally (`flowboard` / user `postgres`); Neon Postgres in prod. Raw SQL only — no EF.
-- **Client**: React 18 + TS + Vite + Tailwind + Zustand + TanStack Query + `@dnd-kit` + Recharts on `http://localhost:5173`.
-- **API URL**: `http://localhost:8080` locally. Frontend reads `VITE_API_URL=http://localhost:8080/api`.
+- **Client**: React 18 + TS + Vite + Tailwind + Zustand + TanStack Query + `@dnd-kit` + Recharts + `@microsoft/signalr` on `http://localhost:5173`.
+- **API URL**: `http://localhost:8080` locally. Frontend reads `VITE_API_URL=http://localhost:8080/api`. SignalR hub lives at the same host root (`/hubs/board`).
 
 ## Layout
 
@@ -104,6 +104,23 @@ After API is up on `:8080`, see `.claude/commands/test-endpoints.md` for a one-s
   its prior log; only the post-delete `issue_deleted` row — with
   `issue_id = NULL` — survives on the project feed). The mentions PK
   column is `mentioned_user_id`, not `user_id`.
+
+## SignalR / real-time fan-out
+
+Every audited mutation already publishes a SignalR event through
+`ActivityLogger.LogAsync` → `IBoardEventPublisher.PublishAsync`. **Don't
+publish from controllers directly** — go through `_activity.LogAsync(...)`
+so the activity feed and the realtime channel stay in lock-step.
+
+If you add a new mutation that needs realtime fan-out:
+1. Add an `activities` row via `_activity.LogAsync(c, projectId, issueId, actorId, "<type>", new { ... })`.
+2. On the client, add a `case '<type>':` arm to `cacheEffectsFor` in
+   `client/src/lib/useBoardSocket.ts` so the right TanStack Query keys
+   invalidate. Unknown types still trigger a project-wide refresh as a
+   safety net, but the explicit arm is cheaper and more targeted.
+3. Lock the wiring in with a SignalR integration test
+   (`SignalRFlowTests` pattern: two `HubConnection`s, mutate from one,
+   assert the other receives the event).
 
 ## Conventions
 
