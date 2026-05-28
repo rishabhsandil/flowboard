@@ -1,4 +1,5 @@
 using FlowBoard.Core.Data.Queries;
+using FlowBoard.Core.Models;
 
 namespace FlowBoard.Tests;
 
@@ -186,5 +187,41 @@ public class QueryShapeTests
     {
         Assert.Contains("@UserId",         PasswordResetTokenQueries.InvalidateAllForUser);
         Assert.Contains("used_at IS NULL", PasswordResetTokenQueries.InvalidateAllForUser);
+    }
+
+    // ---- Saved Filters ----
+
+    [Fact]
+    public void SavedFilterQueries_List_ScopedToUserAndProject()
+    {
+        Assert.Contains("@ProjectId", SavedFilterQueries.ListByUserProject);
+        Assert.Contains("@UserId",    SavedFilterQueries.ListByUserProject);
+    }
+
+    [Fact]
+    public void SavedFilterQueries_Insert_ReturnsRow()
+    {
+        Assert.Contains("RETURNING", SavedFilterQueries.Insert);
+        Assert.Contains("@ProjectId", SavedFilterQueries.Insert);
+        Assert.Contains("@UserId",    SavedFilterQueries.Insert);
+        Assert.Contains("@Filters::jsonb", SavedFilterQueries.Insert);
+    }
+
+    [Fact]
+    public void SavedFilterQueries_FiltersColumn_ProjectedAsText()
+    {
+        // JSONB must be cast to text so Dapper can bind it to string Filters.
+        Assert.Contains("filters::text AS filters", SavedFilterQueries.ListByUserProject);
+        Assert.Contains("filters::text AS filters", SavedFilterQueries.Insert);
+        Assert.Contains("filters::text AS filters", SavedFilterQueries.GetById);
+    }
+
+    [Fact]
+    public void SavedFilter_Record_MapsFiltersAsString()
+    {
+        // Compile-time check: the SavedFilter record has a string Filters property.
+        var prop = typeof(SavedFilter).GetProperty("Filters");
+        Assert.NotNull(prop);
+        Assert.Equal(typeof(string), prop!.PropertyType);
     }
 }

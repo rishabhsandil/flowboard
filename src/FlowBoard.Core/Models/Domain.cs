@@ -259,6 +259,21 @@ public record IssuePickerRow(
     string? ColumnName
 );
 
+// ---------- SAVED FILTERS ----------
+/// <summary>
+/// One row from saved_filters. <c>Filters</c> is the raw JSON string from
+/// the JSONB column (projected as <c>filters::text</c>) so Dapper binds it
+/// as a plain string; the API layer parses it before returning to clients.
+/// </summary>
+public record SavedFilter(
+    Guid Id,
+    Guid ProjectId,
+    Guid UserId,
+    string Name,
+    string Filters,
+    DateTime CreatedAt
+);
+
 // ---------- ACTIVITY LOG ----------
 /// <summary>
 /// One row from the activity feed. <c>Payload</c> is the raw JSON string from

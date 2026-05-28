@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Search, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Bookmark, Search, X } from 'lucide-react';
 import type { EpicWithProgress, Label, ProjectMember, Sprint } from '../types';
 import {
   ACTIVE,
@@ -13,6 +13,7 @@ import {
   type EpicFilter,
   type LabelFilter,
   type PriorityFilter,
+  type SavedFilter,
   type SprintFilter,
 } from '../lib/boardFilters';
 
@@ -26,6 +27,9 @@ interface Props {
   activeSprint: Sprint | undefined;
   /** Total issue count after filters (for the count badge); optional. */
   visibleCount?: number;
+  savedFilters?: SavedFilter[];
+  onSaveFilter?: (name: string) => void;
+  onDeleteSavedFilter?: (id: string) => void;
 }
 
 export function BoardFilterBar({
@@ -37,15 +41,110 @@ export function BoardFilterBar({
   labels,
   activeSprint,
   visibleCount,
+  savedFilters,
+  onSaveFilter,
+  onDeleteSavedFilter,
 }: Props) {
+  const [saveName, setSaveName] = useState('');
+  const [showSaveInput, setShowSaveInput] = useState(false);
+  const saveInputRef = useRef<HTMLInputElement>(null);
+
   function set<K extends keyof BoardFilters>(key: K, value: BoardFilters[K]) {
     onChange({ ...filters, [key]: value });
   }
 
   const activeCount = useMemo(() => countActiveBoardFilters(filters), [filters]);
 
+  function handleSaveSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const name = saveName.trim();
+    if (!name) return;
+    onSaveFilter?.(name);
+    setSaveName('');
+    setShowSaveInput(false);
+  }
+
+  function openSaveInput() {
+    setShowSaveInput(true);
+    setTimeout(() => saveInputRef.current?.focus(), 0);
+  }
+
+  const hasSavedFilters = savedFilters && savedFilters.length > 0;
+  const showQuickPick = hasSavedFilters || activeCount > 0;
+
   return (
     <div className="border-b border-border bg-bg-subtle/40">
+      {/* Quick-pick row: saved preset chips + save button */}
+      {showQuickPick && (
+        <div className="px-6 pt-2 pb-1 flex items-center gap-1.5 flex-wrap">
+          <Bookmark size={12} className="text-text-dim shrink-0" />
+
+          {savedFilters?.map((sf) => (
+            <span
+              key={sf.id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-border bg-bg text-[11px] mono text-text-muted hover:border-accent hover:text-accent group cursor-pointer transition-colors"
+            >
+              <button
+                type="button"
+                onClick={() => onChange(sf.filters)}
+                className="outline-none"
+                aria-label={`apply filter preset "${sf.name}"`}
+              >
+                {sf.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDeleteSavedFilter?.(sf.id)}
+                className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                aria-label={`delete preset "${sf.name}"`}
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+
+          {/* Save current filters */}
+          {activeCount > 0 && !showSaveInput && (
+            <button
+              type="button"
+              onClick={openSaveInput}
+              className="btn-ghost text-[11px] mono inline-flex items-center gap-1"
+              aria-label="save current filters as preset"
+            >
+              + save
+            </button>
+          )}
+
+          {showSaveInput && (
+            <form onSubmit={handleSaveSubmit} className="inline-flex items-center gap-1">
+              <input
+                ref={saveInputRef}
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="preset name…"
+                className="input mono text-[11px] py-0.5 px-2 w-32"
+                aria-label="preset name"
+              />
+              <button type="submit" className="btn-ghost text-[11px] mono">
+                save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSaveInput(false);
+                  setSaveName('');
+                }}
+                className="btn-ghost text-[11px] mono"
+                aria-label="cancel save"
+              >
+                <X size={11} />
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Filter dropdowns row */}
       <div className="px-6 py-3 flex items-center gap-2 flex-wrap">
         {/* Search */}
         <div className="relative">

@@ -31,6 +31,15 @@ export const DEFAULT_BOARD_FILTERS: BoardFilters = {
   label: ALL,
 };
 
+export interface SavedFilter {
+  id: string;
+  projectId: string;
+  userId: string;
+  name: string;
+  filters: BoardFilters;
+  createdAt: string;
+}
+
 export function countActiveBoardFilters(f: BoardFilters): number {
   let n = 0;
   if (f.search.trim()) n++;

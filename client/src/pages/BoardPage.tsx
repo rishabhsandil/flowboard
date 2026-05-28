@@ -29,7 +29,7 @@ import { IssueCard } from '../components/IssueCard';
 import { CreateIssueModal } from '../components/CreateIssueModal';
 import { IssueModal } from '../components/IssueModal';
 import { BoardFilterBar } from '../components/BoardFilterBar';
-import { DEFAULT_BOARD_FILTERS, type BoardFilters } from '../lib/boardFilters';
+import { DEFAULT_BOARD_FILTERS, type BoardFilters, type SavedFilter } from '../lib/boardFilters';
 
 interface Ctx {
   project?: Project;
@@ -75,7 +75,31 @@ export default function BoardPage() {
       (await api.get<{ items: Label[] }>(`/projects/${project!.id}/labels`)).data.items,
     enabled: !!project,
   });
+  const { data: savedFilters } = useQuery({
+    queryKey: ['saved-filters', project?.id],
+    queryFn: async () =>
+      (await api.get<{ items: SavedFilter[] }>(`/projects/${project!.id}/saved-filters`)).data
+        .items,
+    enabled: !!project,
+  });
   const activeSprint = useMemo(() => sprints?.find((s) => s.status === 'active'), [sprints]);
+
+  const savedFiltersKey = ['saved-filters', project?.id];
+
+  const saveFilter = useMutation({
+    mutationFn: async (name: string) =>
+      api.post(`/projects/${project!.id}/saved-filters`, { name, filters }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: savedFiltersKey }),
+    onError: (err: { response?: { data?: { error?: string } } }) => {
+      if (err.response?.data?.error === 'saved_filter_name_exists')
+        toast.error('a preset with that name already exists');
+    },
+  });
+
+  const deleteSavedFilter = useMutation({
+    mutationFn: async (id: string) => api.delete(`/saved-filters/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: savedFiltersKey }),
+  });
 
   // local mirror so drag-and-drop is instant
   const [columns, setColumns] = useState(data?.columns ?? []);
@@ -237,6 +261,9 @@ export default function BoardPage() {
         labels={labels}
         activeSprint={activeSprint}
         visibleCount={filtersActive ? visibleCount : undefined}
+        savedFilters={savedFilters}
+        onSaveFilter={(name) => saveFilter.mutate(name)}
+        onDeleteSavedFilter={(id) => deleteSavedFilter.mutate(id)}
       />
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>

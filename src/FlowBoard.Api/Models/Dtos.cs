@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 namespace FlowBoard.Api.Models;
 
@@ -160,6 +161,12 @@ public record UpdateLabelRequest(
     [RegularExpression(ValidationPatterns.HexColor)] string? Color
 );
 public record AttachLabelRequest([Required] Guid LabelId);
+
+// ---------- Saved Filters ----------
+public record CreateSavedFilterRequest(
+    [Required, StringLength(100, MinimumLength = 1)] string Name,
+    [Required] JsonElement Filters
+);
 
 // ---------- Issue dependencies ----------
 public record CreateIssueDependencyRequest(

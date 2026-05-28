@@ -342,6 +342,22 @@ CREATE TABLE IF NOT EXISTS issue_dependencies (
 CREATE INDEX IF NOT EXISTS idx_issue_dependencies_depends_on
   ON issue_dependencies(depends_on_id);
 
+-- ---------- SAVED FILTERS ----------
+-- Per-user board filter presets scoped to a project. The unique index
+-- enforces case-insensitive name uniqueness per (user, project) pair.
+CREATE TABLE IF NOT EXISTS saved_filters (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id     UUID NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  filters     JSONB NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_saved_filters_user_project_name
+  ON saved_filters(user_id, project_id, LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_saved_filters_user_project
+  ON saved_filters(user_id, project_id);
+
 -- ---------- BOARD SNAPSHOTS (Cumulative Flow Diagram) ----------
 -- One row per (project, column, calendar day). Upserted each time the CFD
 -- endpoint is called, so the chart accumulates data automatically over time.
