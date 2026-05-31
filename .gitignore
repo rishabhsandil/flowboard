@@ -52,3 +52,4 @@ scripts/logs/
 
 # Docs
 docs/*.md
+/scripts/project-agent.ps1
