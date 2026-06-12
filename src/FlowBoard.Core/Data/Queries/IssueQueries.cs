@@ -16,6 +16,7 @@ public static class IssueQueries
             json_agg(
               json_build_object(
                 'id',           i.id,
+                'number',       i.number,
                 'title',        i.title,
                 'priority',     i.priority,
                 'story_points', i.story_points,
@@ -53,7 +54,7 @@ public static class IssueQueries
 
     public const string GetById = @"
         SELECT id, project_id, column_id, epic_id, sprint_id, assignee_id,
-               title, description, priority, story_points, position,
+               title, description, priority, story_points, position, number,
                created_at, updated_at, closed_at, parent_id
         FROM issues WHERE id = @Id;";
 
@@ -66,7 +67,7 @@ public static class IssueQueries
            @Title, @Description, @Priority, @StoryPoints,
            COALESCE((SELECT MAX(position) + 1 FROM issues WHERE column_id = @ColumnId), 0))
         RETURNING id, project_id, column_id, epic_id, sprint_id, assignee_id,
-                  title, description, priority, story_points, position,
+                  title, description, priority, story_points, position, number,
                   created_at, updated_at, closed_at, parent_id;";
 
     // Dynamic-friendly partial update via COALESCE; pass NULL to leave a field unchanged.
@@ -106,7 +107,7 @@ public static class IssueQueries
                          END
         WHERE id = @Id
         RETURNING id, project_id, column_id, epic_id, sprint_id, assignee_id,
-                  title, description, priority, story_points, position,
+                  title, description, priority, story_points, position, number,
                   created_at, updated_at, closed_at, parent_id;";
 
     public const string Delete = @"DELETE FROM issues WHERE id = @Id;";
@@ -114,7 +115,7 @@ public static class IssueQueries
     /// <summary>Direct children of a parent issue; minimal columns for the sub-issue list.</summary>
     public const string ChildrenByParent = @"
         SELECT id, project_id, column_id, epic_id, sprint_id, assignee_id,
-               title, description, priority, story_points, position,
+               title, description, priority, story_points, position, number,
                created_at, updated_at, closed_at, parent_id
         FROM issues
         WHERE parent_id = @ParentId
@@ -168,7 +169,7 @@ public static class IssueQueries
     /// </summary>
     public const string ListByProject = @"
         SELECT i.id, i.project_id, i.column_id, i.epic_id, i.sprint_id, i.assignee_id,
-               i.title, i.description, i.priority, i.story_points, i.position,
+               i.title, i.description, i.priority, i.story_points, i.position, i.number,
                i.created_at, i.updated_at, i.closed_at, i.parent_id,
                c.name AS column_name,
                e.title AS epic_title, e.color AS epic_color,

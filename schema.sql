@@ -203,6 +203,110 @@ CREATE TRIGGER trg_sync_parent_to_children_status
 AFTER UPDATE ON issues
 FOR EACH ROW EXECUTE FUNCTION sync_parent_to_children_status();
 
+-- ---------- ISSUE NUMBERING (per-project sequential "#N") ----------
+-- Every issue gets a human-friendly number that is sequential *within its
+-- project* (project A and project B both independently start at #1).
+-- Allocation happens in a BEFORE INSERT trigger off a single per-project
+-- counter row, which makes it:
+--   * atomic & gapless under concurrency — the INSERT ... ON CONFLICT DO
+--     UPDATE on the counter takes a row lock on exactly ONE row, so parallel
+--     inserts into the same project serialize on that row and each receives a
+--     distinct number. uq_issues_project_number is the backstop.
+--   * deadlock-free by construction — every insert touches a single counter
+--     row belonging to its own project and locks nothing else first, so two
+--     concurrent issue inserts can never form a lock-ordering cycle. (The API
+--     layer additionally retries on 40P01/40001 as defence-in-depth.)
+--   * idempotent on re-apply — the column add, backfill, counter sync, and
+--     constraints below are all guarded, so re-running schema.sql is a no-op.
+
+-- 1. Nullable column first so existing rows can be backfilled before we
+--    enforce NOT NULL. (Matches how search_vector is added below.)
+DO $$ BEGIN
+  ALTER TABLE issues ADD COLUMN number INTEGER;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+-- 2. One counter row per project; last_number = highest number handed out.
+CREATE TABLE IF NOT EXISTS issue_number_counters (
+  project_id  UUID PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  last_number INTEGER NOT NULL DEFAULT 0
+);
+
+-- 3. Backfill: number any issue still missing one, ordered by creation (id
+--    breaks ties deterministically). Continues from each project's current
+--    MAX(number) so a half-finished backfill resumes cleanly, and matches
+--    zero rows once everything is numbered (so re-runs are no-ops).
+--    NOTE: this UPDATE fires trg_issues_updated_at, so pre-existing issues
+--    get their updated_at bumped exactly once on first application — a
+--    one-time cosmetic effect; the assigned numbers follow created_at order.
+DO $$ BEGIN
+  WITH existing_max AS (
+    SELECT project_id, COALESCE(MAX(number), 0) AS max_num
+    FROM issues
+    GROUP BY project_id
+  ),
+  to_number AS (
+    SELECT i.id, i.project_id,
+           ROW_NUMBER() OVER (
+             PARTITION BY i.project_id ORDER BY i.created_at, i.id
+           ) AS rn
+    FROM issues i
+    WHERE i.number IS NULL
+  )
+  UPDATE issues x
+  SET number = em.max_num + tn.rn
+  FROM to_number tn
+  JOIN existing_max em ON em.project_id = tn.project_id
+  WHERE x.id = tn.id;
+END $$;
+
+-- 4. Sync counters to the max number per project. GREATEST keeps re-runs
+--    monotonic — a counter is never rewound below what it has already issued.
+INSERT INTO issue_number_counters (project_id, last_number)
+SELECT project_id, MAX(number)
+FROM issues
+WHERE number IS NOT NULL
+GROUP BY project_id
+ON CONFLICT (project_id) DO UPDATE
+  SET last_number = GREATEST(issue_number_counters.last_number, EXCLUDED.last_number);
+
+-- 5. Every row is numbered now → enforce presence + per-project uniqueness.
+--    SET NOT NULL is a no-op when already set; the unique index is both the
+--    concurrency backstop and the guard for explicitly-supplied numbers.
+ALTER TABLE issues ALTER COLUMN number SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_issues_project_number
+  ON issues(project_id, number);
+
+-- 6. Allocator. If number was supplied explicitly (e.g. a data import),
+--    respect it and ratchet the counter up so future inserts don't collide;
+--    otherwise atomically allocate the next value for the project.
+CREATE OR REPLACE FUNCTION assign_issue_number() RETURNS trigger AS $$
+DECLARE
+  v_number INTEGER;
+BEGIN
+  IF NEW.number IS NOT NULL THEN
+    INSERT INTO issue_number_counters (project_id, last_number)
+    VALUES (NEW.project_id, NEW.number)
+    ON CONFLICT (project_id) DO UPDATE
+      SET last_number = GREATEST(issue_number_counters.last_number, EXCLUDED.last_number);
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO issue_number_counters (project_id, last_number)
+  VALUES (NEW.project_id, 1)
+  ON CONFLICT (project_id) DO UPDATE
+    SET last_number = issue_number_counters.last_number + 1
+  RETURNING last_number INTO v_number;
+
+  NEW.number := v_number;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_assign_issue_number ON issues;
+CREATE TRIGGER trg_assign_issue_number
+BEFORE INSERT ON issues
+FOR EACH ROW EXECUTE FUNCTION assign_issue_number();
+
 -- ---------- REFRESH TOKENS ----------
 -- Server-side state for JWT refresh tokens. We still issue signed JWTs, but
 -- the `jti` claim is also a row here. Revoke = set `revoked_at`. Rotation =

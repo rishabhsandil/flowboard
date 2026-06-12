@@ -47,19 +47,25 @@ public class IssuesController : ControllerBase
             if (error != null) return BadRequest(new { error });
         }
 
-        var issue = await c.QuerySingleAsync<Issue>(IssueQueries.Insert, new
-        {
-            ProjectId   = projectId,
-            ColumnId    = columnId,
-            req.EpicId,
-            req.SprintId,
-            req.AssigneeId,
-            req.ParentId,
-            req.Title,
-            req.Description,
-            Priority    = req.Priority ?? "medium",
-            StoryPoints = req.StoryPoints ?? 0,
-        });
+        // The per-project issue number is allocated DB-side by the
+        // assign_issue_number() BEFORE INSERT trigger. That allocation is
+        // deadlock-free by design, but the insert also fires the points-rollup
+        // / status-sync triggers, so wrap it in the transient-failure retry as
+        // defence-in-depth (40P01 deadlock / 40001 serialization).
+        var issue = await PostgresRetry.ExecuteAsync(() =>
+            c.QuerySingleAsync<Issue>(IssueQueries.Insert, new
+            {
+                ProjectId   = projectId,
+                ColumnId    = columnId,
+                req.EpicId,
+                req.SprintId,
+                req.AssigneeId,
+                req.ParentId,
+                req.Title,
+                req.Description,
+                Priority    = req.Priority ?? "medium",
+                StoryPoints = req.StoryPoints ?? 0,
+            }));
 
         await _activity.LogAsync(c, projectId, issue.Id, User.GetUserId(), "issue_created", new
         {

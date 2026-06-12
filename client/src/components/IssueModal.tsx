@@ -196,7 +196,31 @@ export function IssueModal({ issueId, onClose, onChange }: Props) {
                       ← Back
                     </button>
                   )}
-                  <p className="mono text-xs uppercase tracking-widest text-text-dim"></p>
+                  <div className="flex items-center gap-2 mono text-xs text-text-dim">
+                    <span className="text-text-muted font-semibold">#{issue.number}</span>
+                    {issue.epicId && (
+                      <span className="flex items-center gap-2">
+                        <span className="uppercase tracking-widest text-accent">
+                          {epics?.find((e) => e.id === issue.epicId)?.title || 'Epic'}
+                        </span>
+                        {(issue.parentId || issue.title) && (
+                          <span className="text-text-muted">/</span>
+                        )}
+                      </span>
+                    )}
+                    {issue.parentId && (
+                      <span className="flex items-center gap-2">
+                        <button
+                          onClick={() => navigateTo(issue.parentId!)}
+                          className="hover:underline uppercase tracking-widest truncate max-w-[150px]"
+                          title={parentIssue?.title}
+                        >
+                          {parentIssue?.title || 'Parent'}
+                        </button>
+                        {issue.title && <span className="text-text-muted">/</span>}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="mono text-xs text-text-dim">

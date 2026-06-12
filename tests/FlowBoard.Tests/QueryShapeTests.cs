@@ -161,6 +161,32 @@ public class QueryShapeTests
         Assert.Contains("parent_id = @ParentId", IssueQueries.ChildrenByParent);
     }
 
+    // ---- Per-project issue numbering ----
+
+    [Fact]
+    public void IssueQueries_ProjectAllIssueRecords_ProjectTheNumberColumn()
+    {
+        // The number is server-assigned by the assign_issue_number() trigger
+        // and surfaced everywhere the issue is read; if any of these drops the
+        // column, Dapper still materializes (Number defaults via ctor) but the
+        // API silently returns 0, so pin it here.
+        Assert.Contains("number", IssueQueries.Insert);
+        Assert.Contains("number", IssueQueries.GetById);
+        Assert.Contains("number", IssueQueries.Update);
+        Assert.Contains("number", IssueQueries.ChildrenByParent);
+        Assert.Contains("i.number", IssueQueries.ListByProject);
+        Assert.Contains("'number'", IssueQueries.GetBoard);
+    }
+
+    [Fact]
+    public void IssueQueries_Insert_DoesNotSupplyNumber_LeavingItToTheTrigger()
+    {
+        // The VALUES list must NOT bind @Number — allocation is atomic in the
+        // BEFORE INSERT trigger. Supplying it from the app would reintroduce
+        // the read-modify-write race the trigger exists to eliminate.
+        Assert.DoesNotContain("@Number", IssueQueries.Insert);
+    }
+
     // ---- Password reset tokens ----
 
     [Fact]

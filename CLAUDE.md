@@ -129,6 +129,17 @@ If you add a new mutation that needs realtime fan-out:
 - Raw SQL lives in `src/FlowBoard.Core/Data/Queries/*.cs` as `const string` fields. Controllers `using var c = _db.Create();` then `QueryAsync<T>` / `ExecuteAsync`.
 - Authorization is per-controller via `ProjectAuthorizer.IsMemberAsync(projectId, userId)`. Every project-scoped endpoint must check it.
 - New endpoints: define query in `Data/Queries`, add domain record (matching reader types), add request DTO, wire controller, then update `client/src/api/*` and the relevant Zustand store / query hook.
+- **Issue numbering** is server-allocated, not app-supplied. `issues.number`
+  is a per-project sequential `#N` filled by the `assign_issue_number()`
+  `BEFORE INSERT` trigger off the `issue_number_counters` row (one per
+  project). **Never** bind `@Number` in `IssueQueries.Insert` — that would
+  reintroduce the read-modify-write race the trigger removes. The trigger is
+  deadlock-free (locks a single counter row); `IssuesController.Create` also
+  wraps the insert in `PostgresRetry.ExecuteAsync` (retries `40P01`/`40001`)
+  as defence-in-depth for the rollup/sync triggers. Backfill of pre-existing
+  rows lives in `schema.sql` and is idempotent (`number IS NULL` only,
+  resumes from each project's `MAX(number)`). `number` is `INTEGER` → `int`
+  on the `Issue`/`IssueListRow` records.
 - **Optional-filter SQL pattern** (see `IssueQueries.ListByProject`): `WHERE (@X IS NULL OR col = @X)` for each filter. For nullable FKs, accept the empty-Guid sentinel `'00000000-0000-0000-0000-000000000000'` to mean "filter to NULL". Same sentinel is used by `IssueQueries.Update` to clear an FK.
 - **Frontend error UX**: `client/src/lib/api.ts` toasts every non-401 backend error via `lib/toast.tsx`. Forms that render the error inline pass `{ silent: true }` on the request config (axios module-augmented). Use `humanizeApiError(code)` to map known error codes to user-readable copy.
 

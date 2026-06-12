@@ -21,6 +21,7 @@ export interface Project {
 
 export interface BoardIssue {
   id: string;
+  number: number;
   title: string;
   priority: Priority;
   story_points: number;
@@ -68,6 +69,7 @@ export interface Board {
 
 export interface Issue {
   id: string;
+  number: number;
   projectId: string;
   columnId: string | null;
   epicId: string | null;
@@ -165,6 +167,7 @@ export interface ActivityRow {
 // rendering the chips (matches how BoardIssue.labels would look post-parse).
 export interface IssueListRow {
   id: string;
+  number: number;
   projectId: string;
   columnId: string | null;
   epicId: string | null;

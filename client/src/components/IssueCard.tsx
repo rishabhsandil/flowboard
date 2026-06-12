@@ -38,6 +38,7 @@ export function IssueCard({ issue, onClick, dragging }: Props) {
         <p className="text-sm leading-snug font-medium line-clamp-3 group-hover:text-accent transition-colors">
           {issue.title}
         </p>
+        <span className="mono text-[10px] text-text-dim/70 shrink-0 pt-0.5">#{issue.number}</span>
       </div>
 
       {issue.epic_title && (

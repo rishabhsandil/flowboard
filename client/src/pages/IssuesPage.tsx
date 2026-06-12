@@ -635,6 +635,7 @@ function IssueRow({
       <td className="px-3 py-2">
         <div className={`flex items-center gap-2 ${closed ? 'text-text-dim line-through' : ''}`}>
           {row.parentId && <Layers size={10} className="text-accent shrink-0" />}
+          <span className="mono text-[10px] text-text-dim shrink-0">#{row.number}</span>
           <span className="truncate">{row.title}</span>
           {labels.length > 0 && (
             <span className="flex gap-1 shrink-0">

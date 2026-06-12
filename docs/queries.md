@@ -377,6 +377,73 @@ LIMIT 1;
 
 **1-hop reverse-blocks cycle guard** — catches the immediate A↔B case. Deeper cycles are tolerated (would require a recursive CTE walk to detect).
 
+---
+
+## O. Per-project issue numbering (atomic, deadlock-free, idempotent)
+
+**Where it's used:** every `POST /api/projects/{id}/issues` (and any direct
+`INSERT INTO issues`). Surfaces as `#N` on the board card, the Issues table,
+and the issue modal header.
+
+**Why this shape:**
+- Each issue carries a `number` that is sequential **within its project** —
+  project A and project B both independently start at `#1`. The value is
+  allocated DB-side by the `assign_issue_number()` `BEFORE INSERT` trigger off
+  a single per-project counter row (`issue_number_counters`).
+- **Atomic & gapless:** `INSERT … ON CONFLICT (project_id) DO UPDATE SET
+  last_number = last_number + 1 RETURNING last_number` takes a row lock on
+  exactly one counter row, so concurrent inserts into the same project
+  serialize there and each gets a distinct value. `uq_issues_project_number`
+  is the backstop.
+- **Deadlock-free by construction:** every insert locks a single counter row
+  belonging to its own project and nothing else first — two concurrent issue
+  inserts can't form a lock-ordering cycle. The API layer additionally retries
+  on `40P01` (deadlock) / `40001` (serialization) via `PostgresRetry` as
+  defence-in-depth for the points-rollup / status-sync triggers that fire on
+  the same insert.
+- **Idempotent:** the column add, the backfill, the counter sync, and the
+  constraints are all guarded so re-running `schema.sql` is a no-op. The
+  backfill only touches rows where `number IS NULL` and resumes from each
+  project's current `MAX(number)`.
+- **Explicit-number path:** if a row is inserted with a `number` already set
+  (a data import, or the backfill), the trigger ratchets the counter forward
+  with `GREATEST(...)` instead of allocating — so a future auto-allocation is
+  always `max + 1` and never collides.
+
+```sql
+-- Allocator (BEFORE INSERT ON issues)
+IF NEW.number IS NOT NULL THEN              -- explicit / import / backfill
+  INSERT INTO issue_number_counters (project_id, last_number)
+  VALUES (NEW.project_id, NEW.number)
+  ON CONFLICT (project_id) DO UPDATE
+    SET last_number = GREATEST(issue_number_counters.last_number, EXCLUDED.last_number);
+  RETURN NEW;
+END IF;
+
+INSERT INTO issue_number_counters (project_id, last_number)  -- atomic allocate-next
+VALUES (NEW.project_id, 1)
+ON CONFLICT (project_id) DO UPDATE
+  SET last_number = issue_number_counters.last_number + 1
+RETURNING last_number INTO v_number;
+NEW.number := v_number;
+```
+
+```sql
+-- One-time backfill for pre-existing issues (idempotent: matches zero rows
+-- once everything is numbered; resumes from each project's current MAX).
+WITH existing_max AS (
+  SELECT project_id, COALESCE(MAX(number), 0) AS max_num FROM issues GROUP BY project_id
+),
+to_number AS (
+  SELECT i.id, i.project_id,
+         ROW_NUMBER() OVER (PARTITION BY i.project_id ORDER BY i.created_at, i.id) AS rn
+  FROM issues i WHERE i.number IS NULL
+)
+UPDATE issues x SET number = em.max_num + tn.rn
+FROM to_number tn JOIN existing_max em ON em.project_id = tn.project_id
+WHERE x.id = tn.id;
+```
+
 ```sql
 SELECT 1
 FROM issue_dependencies

@@ -54,6 +54,7 @@ public record Issue(
     string Priority,
     int StoryPoints,
     int Position,
+    int Number,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? ClosedAt,
@@ -62,14 +63,14 @@ public record Issue(
 {
     /// <summary>
     /// Forwarding constructor for queries that do not project <c>parent_id</c>.
-    /// Dapper picks this 14-param overload when the result set lacks that column.
+    /// Dapper picks this 15-param overload when the result set lacks that column.
     /// </summary>
     public Issue(Guid id, Guid projectId, Guid? columnId, Guid? epicId, Guid? sprintId,
                  Guid? assigneeId, string title, string? description, string priority,
-                 int storyPoints, int position, DateTime createdAt, DateTime updatedAt,
+                 int storyPoints, int position, int number, DateTime createdAt, DateTime updatedAt,
                  DateTime? closedAt)
         : this(id, projectId, columnId, epicId, sprintId, assigneeId, title, description,
-               priority, storyPoints, position, createdAt, updatedAt, closedAt, null) { }
+               priority, storyPoints, position, number, createdAt, updatedAt, closedAt, null) { }
 }
 
 public record Epic(
@@ -149,6 +150,7 @@ public record IssueListRow(
     string Priority,
     int StoryPoints,
     int Position,
+    int Number,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? ClosedAt,

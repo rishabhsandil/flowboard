@@ -49,6 +49,7 @@ scripts/logs/
 # Claude Code (commit shared config; ignore per-dev overrides)
 .claude/settings.local.json
 .claude/.credentials/
+graphify-out/
 
 # Docs
 docs/*.md

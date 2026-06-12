@@ -111,6 +111,14 @@ Tracks how close FlowBoard is to a ZenHub-like feature set. Items are grouped by
 - [x] `GET /api/issues/{id}/dependencies/search?q=…` — title `ILIKE` over the same project, excludes the source issue
 - [x] **Jira-style UI panel** in IssueModal's main column below sub-issues: single "+ Add link" button opens a picker with a link-type dropdown (`blocks` / `is blocked by` / `relates to`) and debounced issue search; linked issues render as a flat list grouped by relationship label with one-click remove
 
+### Per-project issue numbering
+- [x] `issues.number` — human-friendly `#N` sequential **within each project** (project A and B both start at `#1`); `uq_issues_project_number` enforces per-project uniqueness
+- [x] `issue_number_counters` + `assign_issue_number()` `BEFORE INSERT` trigger: atomic allocate-next via `INSERT … ON CONFLICT (project_id) DO UPDATE … RETURNING`, locking a single per-project counter row (gapless, **deadlock-free by construction**)
+- [x] Explicit-number path (data import / backfill) ratchets the counter forward with `GREATEST(...)` so future auto-allocations never collide
+- [x] Idempotent one-time backfill of pre-existing issues (ordered by `created_at`, resumes from each project's `MAX(number)`, matches zero rows on re-run)
+- [x] `PostgresRetry` wraps the issue insert — retries `40P01` / `40001` as defence-in-depth for the rollup/sync triggers
+- [x] Surfaced as `#N` on the board card, the Issues table row, and the IssueModal header
+
 ### Comments + collaboration
 - [x] Comments tab on IssueModal (create / edit / delete / @mention)
 
